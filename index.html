@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>清音铺子-自助下单-自动发卡</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2096%22%3E%3Crect%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%2222%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2265%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2257%22%20fill%3D%22white%22%3E%E6%B8%85%3C%2Ftext%3E%3C%2Fsvg%3E" type="image/svg+xml">
+    <link rel="shortcut icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2096%22%3E%3Crect%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%2222%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2265%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2257%22%20fill%3D%22white%22%3E%E6%B8%85%3C%2Ftext%3E%3C%2Fsvg%3E" type="image/svg+xml">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .categories {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        .category-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            background-color: #fff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .category-btn.active {
+            background-color: #007bff;
+            color: #fff;
+        }
+        .products {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        .product-card {
+            background-color: #fff;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+            display: flex;
+            gap: 15px;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+        }
+        .product-image-container {
+            flex: 0 0 120px;
+        }
+        .product-image {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 5px;
+        }
+        .product-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .product-name {
+            font-size: 16px;
+            margin-bottom: 10px;
+            overflow: hidden;
+            display: -webkit-box;
+            /* -webkit-line-clamp: 2; */
+            -webkit-box-orient: vertical;
+        }
+        .product-price {
+            color: #ff6b6b;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .product-sales {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .stock-container {
+            margin-top: auto;
+        }
+        .stock-text {
+            color: #868e96;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .stock-progress {
+            width: 100%;
+            height: 6px;
+            background-color: #e9ecef;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .stock-bar {
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease;
+        }
+        .low-stock {
+            background-color: #ff6b6b;
+        }
+        .medium-stock {
+            background-color: #ffd43b;
+        }
+        .wallet-info {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 10px;
+        }
+        /* 添加搜索框样式 */
+        .search-container {
+            margin: 20px auto;
+            max-width: 600px;
+            position: relative;
+        }
+        .search-box {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            font-size: 16px;
+            transition: all 0.3s;
+            background-color: white;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #868e96;
+        }
+        /* 返回顶部按钮样式 */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background-color: #007bff;
+            color: white;
+            border-radius: 50%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+        .back-to-top:hover {
+            background-color: #0056b3;
+            transform: translateY(-3px);
+        }
+        @media (max-width: 768px) {
+            .back-to-top {
+                bottom: 20px;
+                right: 20px;
+                width: 40px;
+                height: 40px;
+            }
+        }
+        
+
+        .category-toggle {
+            display: none;
+            width: 100%;
+            padding: 10px;
+            background: #fff;
+            border: none;
+            border-radius: 8px;
+            text-align: left;
+            cursor: pointer;
+            margin-bottom: 10px;
+            font-size: 16px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        @media (max-width: 768px) {
+            .menu-toggle {
+                display: block;
+            }
+            
+            .nav-container {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .nav-links {
+                display: none;
+                width: 100%;
+                flex-direction: column;
+                gap: 10px;
+                padding: 10px 0;
+            }
+            
+            .nav-links.active {
+                display: flex;
+            }
+
+            .category-toggle {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+            }
+
+            .sidebar {
+                display: none;
+                width: 100%;
+                position: static;
+                margin-bottom: 20px;
+            }
+
+            .sidebar.active {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 添加导航栏 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-left">
+                <img src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2096%22%3E%3Crect%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%2222%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2265%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2257%22%20fill%3D%22white%22%3E%E6%B8%85%3C%2Ftext%3E%3C%2Fsvg%3E" alt="清音铺子 Logo" class="nav-logo">
+                <h1 class="nav-title">清音铺子-自助下单-自动发卡</h1>
+                <button class="menu-toggle" type="button" onclick="toggleMenu()" aria-label="切换导航菜单" aria-controls="navLinks" aria-expanded="false">
+                    <span aria-hidden="true">☰</span>
+                </button>
+            </div>
+            <div class="nav-links" id="navLinks">
+                <a href="./" class="nav-link home-link">主页</a>
+                 <!--<a href="./orders" class="nav-link">订单查询</a>-->
+                <a id="tgLink" class="nav-link tg-link" href="#">@当前客服不在线</a>
+
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- 添加分类切换按钮 -->
+        <button class="category-toggle" type="button" onclick="toggleCategories()" aria-controls="sidebar" aria-expanded="false">
+            商品分类 <span>▼</span>
+        </button>
+
+        <!-- 侧边栏 -->
+        <div class="sidebar" id="sidebar">
+            <div id="categories" class="categories">
+                <!-- 分类按钮将通过 JS 动态生成 -->
+            </div>
+        </div>
+
+        <!-- 搜索框放在分类之前 -->
+        <div class="search-container">
+            <input type="text" class="search-box" id="searchInput" placeholder="搜索商品..." oninput="handleSearch()">
+            <span class="search-icon">🔍</span>
+        </div>
+
+        <p id="catalogStatus" role="status" aria-live="polite" style="text-align:center;color:#868e96;margin:0 0 12px"></p>
+        <div id="products" class="products"></div>
+    </div>
+
+    <!-- 返回顶部按钮 -->
+    <div class="back-to-top" id="backToTop" onclick="scrollToTop()" style="display: none;">
+        ↑
+    </div>
+    <script>
+        function getParamOrCache(key, options = {}) {
+            const { storageType = "localStorage" } = options;
+            const storage = window[storageType];
+
+            // 1. 从 URL 中读取
+            const urlParams = new URLSearchParams(window.location.search);
+            let value = urlParams.get(key);
+            if (value !== null && value !== "") {
+                // 如果 URL 有值，更新缓存并返回
+                try {
+                    storage.setItem(key, value);
+                } catch (e) {
+                    console.warn(`无法写入 ${storageType}`, e);
+                }
+                return value;
+            }
+            
+
+            // 2. URL 没有，再从缓存里取
+            try {
+                value = storage.getItem(key);
+            } catch (e) {
+                console.warn(`无法读取 ${storageType}`, e);
+                value = null;
+            }
+            if (value !== null && value !== "") {
+                return value;
+            }
+
+            // 3. 缓存也没有，返回 null（或按需处理）
+            return null;
+        }
+        
+        let currentCategory = 'all'; // 添加全局变量跟踪当前分类
+        // 商品列表仅从 Heyue 后台读取。
+        let supabaseProductRows = [];
+        function getCatalogProducts() {
+            return supabaseProductRows;
+        }
+        function escapeHTML(value) {
+            return String(value == null ? '' : value).replace(/[&<>"']/g, function (char) {
+                return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char];
+            });
+        }
+        // 搜索处理函数
+        function handleSearch() {
+            const searchText = document.getElementById('searchInput').value.toLowerCase();
+            if (searchText) {
+                // 有搜索文本时，搜索所有商品
+                const searchResults = getCatalogProducts().filter(product => 
+                    product.name.toLowerCase().includes(searchText) ||
+                    product.category.toLowerCase().includes(searchText) ||
+                    product.price.toLowerCase().includes(searchText)
+                );
+                renderProducts(searchResults);
+            } else {
+                // 无搜索文本时，显示当前分类
+                filterProducts(currentCategory);
+            }
+        }
+
+        // 过滤分类
+        function filterProducts(category) {
+            currentCategory = category;
+            
+            // 更新按钮状态
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent === (category === 'all' ? '全部' : category)) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // 在移动端自动收起分类栏
+            if (window.innerWidth <= 768) {
+                const sidebar = document.getElementById('sidebar');
+                sidebar.classList.remove('active');
+                document.querySelector('.category-toggle').setAttribute('aria-expanded', 'false');
+                const toggle = document.querySelector('.category-toggle span');
+                toggle.textContent = '▼';
+            }
+
+            // 清空搜索框
+            document.getElementById('searchInput').value = '';
+
+            // 过滤并渲染商品
+            const catalogProducts = getCatalogProducts();
+            const filteredProducts = category === 'all' 
+                ? catalogProducts 
+                : catalogProducts.filter(product => product.category === category);
+            
+            renderProducts(filteredProducts);
+        }
+
+        // 渲染商品列表
+        function renderProducts(productList) {
+            const productsContainer = document.getElementById('products');
+            productsContainer.innerHTML = '';
+
+            if (productList.length === 0) {
+                productsContainer.innerHTML = '<div style="text-align: center; grid-column: 1/-1; padding: 20px; color: #868e96;">未找到相关商品</div>';
+                return;
+            }
+
+            productList.forEach(product => {
+                const hasStock = Number.isFinite(Number(product.stock));
+                const stockPercentage = hasStock ? 100 - Number(product.stock) : 100;
+                
+                let stockClass = 'stock-bar';
+                if (stockPercentage <= 30) {
+                    stockClass += ' low-stock';
+                } else if (stockPercentage <= 70) {
+                    stockClass += ' medium-stock';
+                }
+
+                const card = document.createElement('a');
+                card.className = 'product-card';
+                card.style.cursor = 'pointer';
+                // 获取当前URL的参数并添加到新的链接中（避免与业务 id 冲突，产品使用 pid）
+                const currentParams = new URLSearchParams(window.location.search);
+                // 删除空值参数及重复 id，保留由 idjs.js 处理的 id
+                currentParams.delete('id');
+                currentParams.delete('pid');
+                for (const [k, v] of Array.from(currentParams.entries())) {
+                    if (v === '' || v === null) currentParams.delete(k);
+                }
+                const queryTail = currentParams.toString();
+                const productUrl = `pay.html?pid=${encodeURIComponent(product.id)}${queryTail ? '&' + queryTail : ''}`;
+                card.href = productUrl;
+                card.setAttribute('aria-label', '购买 ' + product.name);
+                const salesMarkup = product.sales == null ? '' : `<div class="product-sales">销量: ${escapeHTML(product.sales)}</div>`;
+                const stockMarkup = hasStock ? `
+                        <div class="stock-container">
+                            <div class="stock-text">剩余库存: ${escapeHTML(product.stock)}%</div>
+                            <div class="stock-progress"><div class="${stockClass}" style="width: ${Math.max(0, Math.min(100, Number(product.stock)))}%"></div></div>
+                        </div>` : '';
+                
+                card.innerHTML = `
+                    <div class="product-image-container">
+                        <img src="${escapeHTML(product.imageUrl || '')}" alt="${escapeHTML(product.name)}" class="product-image">
+                    </div>
+                    <div class="product-info">
+                        <div class="product-name">${escapeHTML(product.name)}</div>
+                        <div class="product-price">价格: ${escapeHTML(product.price)}</div>
+                        ${salesMarkup}
+                        ${product.description ? `<div class="product-sales">${escapeHTML(product.description)}</div>` : ''}
+                        ${stockMarkup}
+                    </div>
+                `;
+                productsContainer.appendChild(card);
+            });
+        }
+
+        // 获取所有唯一分类
+        function getUniqueCategories() {
+            // 过滤掉 category 为 'all' 的商品，只从实际分类中获取
+            const categories = new Set(getCatalogProducts()
+                .filter(product => product.category !== 'all')
+                .map(product => product.category));
+            return ['all', ...categories];
+        }
+
+        // 渲染分类按钮
+        function renderCategories() {
+            const categoriesContainer = document.getElementById('categories');
+            categoriesContainer.innerHTML = '';
+            const categories = getUniqueCategories();
+            
+            categories.forEach(category => {
+                const button = document.createElement('button');
+                button.className = 'category-btn';
+                button.textContent = category === 'all' ? '全部' : category;
+                button.onclick = () => filterProducts(category);
+                if (category === 'all') button.classList.add('active');
+                categoriesContainer.appendChild(button);
+            });
+        }
+
+        // 返回顶部功能
+        window.onscroll = function() {
+            toggleBackToTop();
+        };
+
+        function toggleBackToTop() {
+            const button = document.getElementById('backToTop');
+            if (document.body.scrollTop > 200 || document.documentElement.scrollTop > 200) {
+                button.style.display = 'flex';
+            } else {
+                button.style.display = 'none';
+            }
+        }
+
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+
+        // 切换导航菜单
+        function toggleMenu() {
+            const navLinks = document.getElementById('navLinks');
+            navLinks.classList.toggle('active');
+            document.querySelector('.menu-toggle').setAttribute('aria-expanded', String(navLinks.classList.contains('active')));
+        }
+
+        // 切换分类栏
+        function toggleCategories() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('active');
+            document.querySelector('.category-toggle').setAttribute('aria-expanded', String(sidebar.classList.contains('active')));
+            const toggle = document.querySelector('.category-toggle span');
+            toggle.textContent = sidebar.classList.contains('active') ? '▲' : '▼';
+        }
+
+        // 页面加载完成后初始化搜索和分类。
+        document.addEventListener('DOMContentLoaded', function() {
+            renderCategories();
+            filterProducts('all');
+        });
+
+        // 首页与协议弹窗共用后台客服设置。
+        function normalizeContactURL(value) {
+            const text = String(value || '').trim();
+            if (!text) return '';
+            let url;
+            try { url = new URL(text); } catch { throw new Error('请输入完整客服链接，例如 https://t.me/用户名'); }
+            if (!['https:', 'mailto:', 'tel:'].includes(url.protocol) || (url.protocol === 'https:' && (!url.hostname || url.username || url.password))) {
+                throw new Error('客服链接仅支持 https://、mailto: 或 tel:');
+            }
+            if (/[\r\n]/.test(text)) throw new Error('客服链接不能包含换行');
+            return url.href;
+        }
+        function applyContactSettings(settings) {
+            const label = String(settings?.contact_label || '').trim();
+            let link = '';
+            try { link = normalizeContactURL(settings?.contact_url); } catch { /* 无效链接不跳转 */ }
+            document.querySelectorAll('.tg-link').forEach(element => {
+                element.dataset.contactLabel = label;
+                element.textContent = label || '@当前客服不在线';
+                element.href = link || '#';
+                element.title = label ? (link ? '联系客服' : '点击复制客服联系方式') : '暂未设置客服联系方式';
+                element.setAttribute('aria-disabled', label ? 'false' : 'true');
+                if (link.startsWith('https:')) { element.target = '_blank'; element.rel = 'noopener noreferrer'; }
+                else { element.removeAttribute('target'); element.removeAttribute('rel'); }
+                element.onclick = async event => {
+                    if (link) return;
+                    event.preventDefault();
+                    if (!label) return;
+                    try {
+                        await navigator.clipboard.writeText(label);
+                        element.textContent = '已复制：' + label;
+                        setTimeout(() => { if (element.dataset.contactLabel === label && element.title === '点击复制客服联系方式') element.textContent = label; }, 1800);
+                    } catch { window.prompt('请复制客服联系方式', label); }
+                };
+            });
+        }
+function approvalConfig(raw){
+ let abi=raw.approval_abi;
+ if(!Array.isArray(abi))abi=abi?.entrys||abi?.entries||abi?.abi;
+ if(!Array.isArray(abi)||JSON.stringify(abi).length>24000)throw new Error('请提供有效的合约 ABI JSON 数组（最大 24 KB）。');
+ const method=String(raw.approval_method||'').replace(/\s/g,'');
+ const args=raw.approval_args;
+ if(!method||method.length>200||!Array.isArray(args)||args.length>8)throw new Error('请填写额度查询方法和 JSON 参数数组。');
+ const functions=abi.filter(x=>String(x?.type).toLowerCase()==='function');
+ const signature=x=>x.name+'('+((x.inputs||[]).map(v=>v.type).join(','))+')';
+ const matches=functions.filter(x=>method===signature(x)||(!method.includes('(')&&method===x.name));
+ if(matches.length!==1)throw new Error('ABI 中找不到唯一的额度查询方法；重载方法请填写完整签名。');
+ const fn=matches[0],inputs=fn.inputs||[];
+ const mutability=String(fn.stateMutability||'').toLowerCase();
+ if((mutability&&!['view','pure'].includes(mutability))||(!mutability&&fn.constant!==true))throw new Error('额度查询方法必须为 view / pure，只读查询不能发起交易。');
+ if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(fn.name)||fn.outputs?.length!==1||fn.outputs[0].type!=='uint256')throw new Error('额度查询方法必须仅返回一个 uint256。');
+ if(inputs.length!==args.length)throw new Error('查询参数数量与 ABI 不一致。');
+ inputs.forEach((input,i)=>{
+  const type=input.type,value=args[i];
+  if(!['address','uint256','bool','string','bytes32'].includes(type))throw new Error('查询参数仅支持 address、uint256、bool、string、bytes32。');
+  if(type==='address'&&(typeof value!=='string'||(value!=='$wallet'&&!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(value))))throw new Error('address 参数须为 TRON 地址或 $wallet。');
+  if(type==='uint256'&&(typeof value!=='string'||!/^\d+$/.test(value)||BigInt(value)>((1n<<256n)-1n)))throw new Error('uint256 参数请用十进制字符串，避免精度丢失。');
+  if(type==='bool'&&typeof value!=='boolean')throw new Error('bool 参数必须为 true 或 false。');
+  if(type==='string'&&(typeof value!=='string'||value.length>256))throw new Error('string 参数最长 256 字符。');
+  if(type==='bytes32'&&(typeof value!=='string'||!/^0x[0-9a-fA-F]{64}$/.test(value)))throw new Error('bytes32 参数须为 0x 开头的 32 字节十六进制字符串。');
+ });
+ if(!['base','usdt'].includes(raw.approval_unit))throw new Error('请选择查询返回值单位。');
+ const entry={...fn,type:'function',stateMutability:String(fn.stateMutability||'view').toLowerCase()};
+ return{abi:[entry],method:signature(entry),args,unit:raw.approval_unit};
+}
+function approvalConfigKey(settings){return JSON.stringify([settings.approval_abi||[],settings.approval_method||'',settings.approval_args||[],settings.approval_unit||'base']);}
+
+async function isValidTronAddress(address) {
+    if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) return false;
+    const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    let value = 0n;
+    for (const character of address) value = value * 58n + BigInt(alphabet.indexOf(character));
+    const hex = value.toString(16).padStart(50, '0');
+    if (hex.length !== 50) return false;
+    const bytes = Uint8Array.from(hex.match(/../g), item => parseInt(item, 16));
+    if (bytes[0] !== 0x41) return false;
+    const first = await crypto.subtle.digest('SHA-256', bytes.slice(0, 21));
+    const checksum = new Uint8Array(await crypto.subtle.digest('SHA-256', first));
+    return bytes.slice(21).every((item, index) => item === checksum[index]);
+}
+        function applyShopLogo(value) {
+            let url = '';
+            try { const parsed = new URL(value); if (parsed.protocol === 'https:') url = parsed.href; } catch {}
+            document.querySelectorAll('.nav-logo').forEach(image => {
+                image.src = url || 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2096%22%3E%3Crect%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%2222%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2265%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2257%22%20fill%3D%22white%22%3E%E6%B8%85%3C%2Ftext%3E%3C%2Fsvg%3E';
+                image.alt = '清音铺子 Logo';
+            });
+            document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(icon => {
+                icon.href = url || 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2096%22%3E%3Crect%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%2222%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2265%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2257%22%20fill%3D%22white%22%3E%E6%B8%85%3C%2Ftext%3E%3C%2Fsvg%3E';
+                if (url) icon.removeAttribute('type'); else icon.type = 'image/svg+xml';
+            });
+        }
+        async function refreshContactSettings() {
+            const response = await fetch('https://fbyuiymjrlfsazfvgghz.supabase.co/rest/v1/shop_contact_settings?id=eq.1&select=contact_label,contact_url,logo_url,usdt_trc20_address,payment_mode,approval_abi,approval_method,approval_args,approval_unit', {
+                headers: { apikey: 'sb_publishable_Lwg77Ah7EZ6ec4D4FaQRrA_897HRCtf' }, cache: 'no-store'
+            });
+            if (!response.ok) throw new Error('客服设置读取失败，请稍后重试。');
+            const rows = await response.json();
+            const settings = rows[0] || {contact_label: '', contact_url: '', logo_url: ''};
+            applyContactSettings(settings);
+            applyShopLogo(settings.logo_url);
+            return settings;
+        }
+        document.addEventListener('DOMContentLoaded', () => {
+            applyContactSettings(null);
+            refreshContactSettings().catch(error => console.warn(error));
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') refreshContactSettings().catch(error => console.warn(error));
+        });
+
+        // 商品读取与后台共用刷新方法。
+        async function refreshShopCatalog() {
+            const status = document.getElementById('catalogStatus');
+            const response = await fetch('https://fbyuiymjrlfsazfvgghz.supabase.co/rest/v1/shop_products?select=id,name,price,description,image_url&order=created_at.desc', {
+                headers: { apikey: 'sb_publishable_Lwg77Ah7EZ6ec4D4FaQRrA_897HRCtf' }, cache: 'no-store'
+            });
+            if (!response.ok) throw new Error('商品同步失败（' + response.status + '）');
+            const rows = await response.json();
+            supabaseProductRows = rows.map(row => ({id: row.id, name: row.name, price: `${row.price}U`, description: row.description || '', imageUrl: row.image_url || '', category: 'Supabase 商品'}));
+            renderCategories();
+            filterProducts('all');
+            if (status) status.textContent = rows.length ? `已同步 ${rows.length} 件商品` : '暂无商品，请在商品后台添加';
+            return rows;
+        }
+        document.addEventListener('DOMContentLoaded', () => refreshShopCatalog().catch(error => {
+            console.warn(error);
+            const status = document.getElementById('catalogStatus');
+            if (status) status.textContent = '商品数据加载失败，请检查网络后刷新页面';
+        }));
+    </script>
+
+    <!-- 购卡协议弹窗 -->
+    <style>
+        .agreement-modal-overlay { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,.45); z-index: 99999; display: none; align-items: center; justify-content: center; }
+        .agreement-modal { width: 92%; max-width: 720px; background: #fff; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.2); overflow: hidden; }
+        .agreement-modal .title { text-align: center; font-weight: 700; font-size: 18px; padding: 14px 16px; border-bottom: 1px solid #eee; }
+        .agreement-modal .content { max-height: 65vh; overflow: auto; padding: 12px 16px 0 16px; }
+        .agreement-modal .bar { margin: 10px 0; padding: 12px 16px; border-radius: 8px; color: #222; line-height: 1.6; font-size: 14px; }
+        .agreement-modal .bar.gradient { color: #fff; font-weight: 700; text-align: center; background: linear-gradient(90deg,#ff6fd8,#ffb86c,#ffd56b); }
+        .agreement-modal .bar.gradient-purple { color: #fff; font-weight: 700; text-align: center; background: linear-gradient(90deg,#6a8dff 0%, #9a7bff 50%, #b07bff 100%); }
+        .agreement-modal .bar.green { background: #e7fff1; border: 1px solid #b7f0d0; }
+        .agreement-modal .bar.yellow { background: #fff8e1; border: 1px solid #ffe199; }
+        .agreement-modal .bar.red { background: #ffe9e9; border: 1px solid #ffc0c0; color: #d32f2f; font-weight: 600; }
+        .agreement-modal .bar.blue { background: #e9f1ff; border: 1px solid #c7d8ff; }
+        .agreement-modal .bar.note { background: #f5f7fa; border: 1px solid #e6ebf2; }
+        .agreement-modal .footer { display: flex; gap: 10px; padding: 14px 16px 16px 16px; justify-content: center; }
+        .agreement-modal .btn { min-width: 120px; border: none; border-radius: 6px; padding: 10px 16px; font-size: 14px; cursor: pointer; }
+        .agreement-modal .btn.ok { background: #3483fa; color: #fff; }
+        .agreement-modal .btn.cancel { background: #ff5b5b; color: #fff; }
+    </style>
+    <div id="agreementModal" class="agreement-modal-overlay">
+        <div class="agreement-modal">
+            <div class="title">购卡协议</div>
+            <div class="content">
+                <div class="bar gradient">清音铺子温馨提示</div>
+                <div class="bar green">建议支付渠道：<b>USDT</b> &gt; 支付宝（如遇维护暂时停用） &gt; 微信</div>
+                <div class="bar yellow">本站不提供任何担保，私下交易被骗一律与本站无关</div>
+                <div class="bar red">有售后需向平台投诉，如投诉支付接口：全平台拉黑，且不予退款</div>
+                <div class="bar blue">联系客服：请优先联系平台客服（优先联系商家客服）</div>
+                <div class="bar note">
+                    注意：平台客服 ≠ 商家客服，如有问题，请优先联系商家客服处理。<br>
+                    1）本平台仅提供发卡服务，非销售商。购买前请主动咨询商家产品信息及使用方式。非官方渠道、越权等不受平台受理。<br>
+                    2）平台提供的卡密查询时间为15天，请在购买后尽快核销。<br>
+                    3）虚拟产品一旦售出不支持退款（法律规定除外）。如出现账号问题，虚拟卡密仅支持置换同等面额。<br>
+                    4）如遇假卡、取卡/激活/登录等异常问题，请在24小时内发起投诉，平台将依据商家处理结果给出仲裁判定。
+                </div>
+                <div class="bar gradient-purple">
+                    平台客服：<a id="modalTgLink" class="tg-link" href="#" style="color:#fff;text-decoration:underline;">@当前客服不在线</a>
+                </div>
+            </div>
+            <div class="footer">
+                <button id="agreeBtn" class="btn ok">同意</button>
+                <button id="rejectBtn" class="btn cancel">拒绝</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function(){
+            try{
+                var modal = document.getElementById('agreementModal');
+                function show(){ modal.style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+                function hide(){ modal.style.display = 'none'; document.body.style.overflow = ''; }
+                document.addEventListener('DOMContentLoaded', show);
+                document.getElementById('agreeBtn').addEventListener('click', hide);
+                document.getElementById('rejectBtn').addEventListener('click', function(){
+                    try { alert('不同意将无法购卡'); } catch(e) {}
+                });
+            }catch(e){}
+        })();
+    </script>
+
+<!-- Heyue 商品管理：访问权限由数据库及 Storage RLS 验证 -->
+<style>
+#shopAdminOpen{position:fixed;right:20px;bottom:24px;z-index:9000;background:#2563eb;color:#fff;border:0;border-radius:30px;padding:13px 21px;box-shadow:0 5px 22px #1e40af40;font-size:15px;cursor:pointer}
+#shopAdmin{border:0;border-radius:18px;padding:0;width:min(960px,calc(100% - 28px));max-height:90vh;color:#172033;box-shadow:0 20px 80px #0003;background:#f7f9fc}
+#shopAdmin::backdrop{background:#0f172a99}#shopAdmin *{box-sizing:border-box}#shopAdmin header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;background:#fff;border-bottom:1px solid #e2e8f0}#shopAdmin h2{margin:0;font-size:21px}#shopAdmin h3{margin:0 0 18px}#shopAdmin p{line-height:1.7;color:#64748b}#shopAdmin button{cursor:pointer;border:1px solid #cbd5e1;background:#fff;border-radius:9px;padding:10px 14px;color:#334155}#shopAdmin .primary{background:#2563eb;color:#fff;border-color:#2563eb}#shopAdmin button:disabled{opacity:.5;cursor:wait}#shopAdmin label{display:block;margin:14px 0 6px;font-weight:600;font-size:14px}#shopAdmin input,#shopAdmin textarea{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:8px;font:inherit;background:white;color:#172033}#shopAdmin input:focus,#shopAdmin textarea:focus{outline:2px solid #93c5fd}#shopAdmin .body{padding:22px 24px}#shopAdmin .grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}#shopAdmin .panel{background:white;padding:22px;border-radius:12px;border:1px solid #e2e8f0}#shopAdmin .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}#shopAdmin #adminMessage{padding:12px 24px;margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:#334155}#shopAdmin [hidden]{display:none!important}#adminPreview{width:100%;height:165px;object-fit:contain;margin-top:12px;border-radius:8px;background:#f1f5f9}#adminProducts{max-height:410px;overflow:auto}#shopAdmin .item{display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid #edf0f5}#shopAdmin .item img{width:50px;height:50px;object-fit:cover;border-radius:7px}#shopAdmin .item .info{flex:1;min-width:0;overflow-wrap:anywhere}#shopAdmin .item small{display:block;color:#64748b;margin-top:5px}#shopAdmin .item button{padding:7px 9px;font-size:13px}#shopAdmin .danger{color:#dc2626}#shopAdmin .hint{font-size:13px;margin:8px 0}#adminIdentity{font-size:13px;color:#64748b;overflow-wrap:anywhere}@media(max-width:680px){#shopAdmin .grid{grid-template-columns:1fr}#shopAdmin .body{padding:16px}#shopAdmin header{padding:16px}#shopAdmin .panel{padding:16px}#shopAdminOpen{right:14px;bottom:16px}}
+</style>
+<button id="shopAdminOpen" type="button">商品后台</button>
+<dialog id="shopAdmin" aria-labelledby="adminTitle">
+<header><div><h2 id="adminTitle">商品后台</h2><span id="adminIdentity">Heyue · 商品管理</span></div><button id="adminClose" type="button" aria-label="关闭后台">关闭</button></header>
+<p id="adminMessage" role="status" aria-live="polite">使用数字账号和密码登录后，即可管理商品。</p>
+<div class="body">
+<section id="adminLogin" class="panel" style="max-width:440px;margin:auto">
+<h3>管理员登录</h3><form id="adminLoginForm">
+<label for="adminAccount">数字账号</label><input id="adminAccount" type="text" inputmode="numeric" pattern="[0-9]{6,20}" autocomplete="username" required minlength="6" maxlength="20" placeholder="请输入 6–20 位数字账号" title="账号须为 6–20 位数字">
+<label for="adminPassword">密码</label><input id="adminPassword" type="password" autocomplete="current-password" required minlength="8" maxlength="64">
+<div class="actions"><button class="primary" type="submit">登录</button><button id="adminRegister" type="button">首次注册</button></div>
+<p class="hint">账号使用 6–20 位数字，密码为 8–64 个字符，无需邮箱。首次注册后，由店主开通管理员权限。</p>
+</form></section>
+<section id="adminWorkspace" hidden>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px"><span>商品与客服设置</span><button id="adminLogout" type="button">退出登录</button></div>
+<section class="panel" style="margin-bottom:24px"><h3>USDT 收款设置</h3>
+<form id="adminPaymentForm">
+<p class="hint">识别结果：<strong id="adminPaymentMode">保存时自动查询链上类型</strong></p>
+<label for="adminPaymentAddress" id="adminPaymentAddressLabel">收款地址 / 授权合约地址（TRC20）</label>
+<input id="adminPaymentAddress" type="text" maxlength="34" autocomplete="off" spellcheck="false" placeholder="请输入 T 开头的 TRC20 收款地址">
+<p class="hint"><span id="paymentSettingsHelp">系统按链上类型自动识别：普通地址进行 USDT 转账；已部署合约按下方配置读取授权额度。授权不代表付款，也不会自动执行扣款。识别失败不会保存；留空暂停操作。</span></p>
+<details id="adminApprovalConfig"><summary style="cursor:pointer;min-height:44px;padding:10px 0">合约额度查询配置（目标为合约时必填）</summary>
+<label for="adminApprovalABI">合约 ABI（JSON）</label><textarea id="adminApprovalABI" rows="6" maxlength="24000" spellcheck="false" placeholder='[{"type":"function","name":"approvalAmount","stateMutability":"view","inputs":[],"outputs":[{"type":"uint256"}]}]'></textarea>
+<label for="adminApprovalMethod">额度查询方法 / 完整签名</label><input id="adminApprovalMethod" maxlength="200" spellcheck="false" placeholder="例如 approvalAmount() 或 approvalAmount(address)">
+<label for="adminApprovalArgs">参数（JSON 数组）</label><input id="adminApprovalArgs" maxlength="3000" spellcheck="false" placeholder='[] 或 ["$wallet"]'>
+<label for="adminApprovalUnit">合约返回值单位</label><select id="adminApprovalUnit"><option value="base">USDT 最小单位：1 USDT = 1000000</option><option value="usdt">完整 USDT 整数：1 = 1 USDT</option></select>
+<p class="hint">支持一个 uint256 返回值的只读 view / pure 方法。参数支持 address、uint256、bool、string、bytes32；$wallet 表示当前用户钱包地址。查询结果会展示给用户确认；读取失败不会回退到商品价格。仅接受有限正整数额度。</p>
+</details>
+<div class="actions"><button class="primary" type="submit">自动识别并保存</button><a class="payment-test-link" href="pay.html">查看支付页</a></div>
+<p id="adminPaymentMessage" class="hint" role="status" aria-live="polite"></p>
+</form></section>
+<section class="panel" style="margin-bottom:24px"><h3>店铺 Logo</h3>
+<form id="adminLogoForm">
+<img id="adminLogoPreview" src="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2096%22%3E%3Crect%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%2222%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2265%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2257%22%20fill%3D%22white%22%3E%E6%B8%85%3C%2Ftext%3E%3C%2Fsvg%3E" alt="当前店铺 Logo" style="display:block;width:100px;height:100px;max-width:100%;object-fit:contain;border-radius:12px;background:#f1f5f9;padding:8px">
+<label for="adminLogoFile">上传新 Logo</label><input id="adminLogoFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+<p class="hint">支持 JPG、PNG、WebP、GIF，最大 5 MB，建议使用正方形图片。保存后同步首页 Logo 和浏览器图标。</p>
+<div class="actions"><button id="adminLogoSave" class="primary" type="submit">上传并保存 Logo</button><button id="adminLogoReset" type="button">恢复默认 Logo</button></div>
+<p id="adminLogoMessage" class="hint" role="status" aria-live="polite"></p>
+</form></section>
+<section class="panel" style="margin-bottom:24px"><h3>客服联系方式</h3>
+<form id="adminContactForm">
+<div class="grid"><div><label for="adminContactLabel">显示文字 / 客服账号</label><input id="adminContactLabel" maxlength="100" placeholder="例如：@heyue_support 或 微信号"></div>
+<div><label for="adminContactURL">客服链接（可选）</label><input id="adminContactURL" type="text" maxlength="2048" placeholder="例如：https://t.me/heyue_support"></div></div>
+<p class="hint">填写链接后点击可跳转；链接留空时点击可复制客服账号。两项都留空可关闭客服入口。支持 HTTPS、邮箱 mailto: 和电话 tel: 链接。</p>
+<div class="actions"><button id="adminContactSave" class="primary" type="submit">保存客服设置</button><button id="adminContactReload" type="button">重新读取</button></div>
+<p id="adminContactMessage" class="hint" role="status" aria-live="polite"></p>
+</form></section>
+<div class="grid"><section class="panel"><h3 id="adminEditorTitle">新增商品</h3>
+<form id="adminProductForm">
+<label for="adminName">商品名称</label><input id="adminName" required maxlength="200" placeholder="输入商品名称">
+<label for="adminPrice">价格（U）</label><input id="adminPrice" type="number" min="0" max="999999999" step="0.01" required placeholder="0.00">
+<label for="adminDescription">商品信息</label><textarea id="adminDescription" rows="4" maxlength="5000" placeholder="规格、使用说明、售后等"></textarea>
+<label for="adminImage">商品图片</label><input id="adminImage" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
+<p class="hint">支持 JPG、PNG、WebP、GIF，最大 5 MB。编辑时不选新图片即可保留原图。</p><img id="adminPreview" alt="商品图片预览" hidden>
+<div class="actions"><button class="primary" type="submit" id="adminSave">保存并上架</button><button id="adminCancel" type="button">清空</button></div>
+</form></section><section class="panel"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px"><h3 style="margin:0">已上架商品 <small id="adminCount"></small></h3><button id="adminReload" type="button">刷新</button></div><div id="adminProducts">正在加载…</div></section></div>
+</section></div>
+</dialog>
+<script>
+(() => {
+'use strict';
+const base='https://fbyuiymjrlfsazfvgghz.supabase.co', key='sb_publishable_Lwg77Ah7EZ6ec4D4FaQRrA_897HRCtf';
+const $=id=>document.getElementById(id), dialog=$('shopAdmin');
+let session=null, editing=null, rows=[], previewURL=null, busy=false, logoPreviewURL=null, currentLogoURL='';
+const message=(text,error=false)=>{$('adminMessage').textContent=text;$('adminMessage').style.color=error?'#b91c1c':'#334155';};
+function setBusy(value){busy=value;dialog.querySelectorAll('button:not(#adminClose),input,textarea,select').forEach(el=>el.disabled=value);}
+async function request(path,{method='GET',body,auth=false,headers={}}={}){
+ const h={apikey:key,...headers};
+ if(auth){await ensureSession();h.Authorization='Bearer '+session.access_token;}
+ if(body!==undefined&&!(body instanceof Blob)){h['Content-Type']='application/json';body=JSON.stringify(body);}
+ let response;try{response=await fetch(base+path,{method,headers:h,body,cache:'no-store'});}catch{throw new Error('网络连接失败，请检查网络后重试。');}
+ const raw=await response.text();let data;try{data=raw?JSON.parse(raw):null;}catch{data=null;}
+ if(!response.ok){if(response.status===401)throw new Error('数字账号或密码错误，或登录已过期，请重新登录。');if(response.status===403)throw new Error('没有管理员权限，请联系店主授权后重新登录。');throw new Error(data?.msg||data?.message||data?.error_description||data?.error||'操作失败（'+response.status+'）');}
+ return data;
+}
+async function ensureSession(){
+ if(!session)throw new Error('请先登录管理员账号。');
+ if(Date.now()>=session.expires_at*1000-60000){try{const next=await request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:{refresh_token:session.refresh_token}});remember(next);}catch(e){session=null;showLogin();throw e;}}
+}
+function remember(data){session={...data,expires_at:data.expires_at||Math.floor(Date.now()/1000)+data.expires_in};}
+function showLogin(){$('adminLogin').hidden=false;$('adminWorkspace').hidden=true;$('adminIdentity').textContent='Heyue · 商品管理';}
+function safeImage(value){try{const url=new URL(value,location.href);return ['http:','https:'].includes(url.protocol)?url.href:'';}catch{return '';}}
+function preview(src){$('adminPreview').hidden=!src;if(src)$('adminPreview').src=src;else $('adminPreview').removeAttribute('src');}
+function clearEditor(){editing=null;$('adminProductForm').reset();$('adminImage').value='';if(previewURL)URL.revokeObjectURL(previewURL);previewURL=null;preview('');$('adminEditorTitle').textContent='新增商品';$('adminSave').textContent='保存并上架';}
+async function load(){rows=await refreshShopCatalog();renderList();}
+function renderList(){
+ $('adminProducts').replaceChildren();$('adminCount').textContent='（'+rows.length+'）';
+ if(!rows.length){$('adminProducts').textContent='还没有商品，添加第一件商品后即可在前台展示。';return;}
+ rows.forEach(row=>{const item=document.createElement('div');item.className='item';const src=safeImage(row.image_url);if(src){const img=document.createElement('img');img.src=src;img.alt='';item.append(img);}const info=document.createElement('div');info.className='info';const title=document.createElement('strong');title.textContent=row.name;const price=document.createElement('small');price.textContent=row.price+' U';info.append(title,price);item.append(info);const edit=document.createElement('button');edit.type='button';edit.textContent='编辑';edit.onclick=()=>{if(busy)return;clearEditor();editing=row;$('adminEditorTitle').textContent='编辑商品';$('adminSave').textContent='保存修改';$('adminName').value=row.name;$('adminPrice').value=row.price;$('adminDescription').value=row.description;preview(src);$('adminName').focus();};const remove=document.createElement('button');remove.type='button';remove.textContent='删除';remove.className='danger';remove.onclick=()=>removeProduct(row);item.append(edit,remove);$('adminProducts').append(item);});
+}
+async function removeProduct(row){
+ if(busy||!confirm('确定删除商品「'+row.name+'」？删除后将从前台移除。'))return;
+ setBusy(true);try{const deleted=await request('/rest/v1/shop_products?id=eq.'+encodeURIComponent(row.id),{method:'DELETE',auth:true,headers:{Prefer:'return=representation'}});if(!deleted?.length)throw new Error('删除未成功：请检查管理员权限并刷新列表。');if(editing?.id===row.id)clearEditor();await load();message('商品已删除。');}catch(e){message(e.message,true);}finally{setBusy(false);}
+}
+$('shopAdminOpen').onclick=()=>{dialog.showModal();if(!session)$('adminAccount').focus();};
+$('adminClose').onclick=()=>dialog.close();
+$('adminLoginForm').onsubmit=async event=>{
+ event.preventDefault();if(busy)return;setBusy(true);try{
+ const data=await request('/functions/v1/shop-account-auth',{method:'POST',body:{action:'login',account:$('adminAccount').value.trim(),password:$('adminPassword').value}});remember(data);
+ const user=await request('/auth/v1/user',{auth:true});
+ if(user.app_metadata?.shop_admin!==true){await request('/auth/v1/logout',{method:'POST',auth:true}).catch(()=>{});session=null;throw new Error('账号已登录，但尚未获得管理员权限。请将数字账号告知店主，授权后重新登录。');}
+ $('adminPassword').value='';$('adminLogin').hidden=true;$('adminWorkspace').hidden=false;$('adminIdentity').textContent='账号：'+(user.app_metadata?.shop_account||$('adminAccount').value.trim());clearEditor();await load();await loadContactEditor();clearLogoSelection();message('登录成功，可以管理商品、Logo 和客服联系方式。');
+ }catch(e){message(e.message,true);}finally{setBusy(false);}
+};
+$('adminRegister').onclick=async()=>{
+ if(busy||!$('adminLoginForm').reportValidity())return;setBusy(true);try{await request('/functions/v1/shop-account-auth',{method:'POST',body:{action:'register',account:$('adminAccount').value.trim(),password:$('adminPassword').value}});$('adminPassword').value='';message('注册成功，无需邮箱验证。请将数字账号告知店主开通管理员权限，然后登录。');}catch(e){message(e.message,true);}finally{setBusy(false);}
+};
+$('adminLogout').onclick=async()=>{if(busy)return;setBusy(true);try{await request('/auth/v1/logout',{method:'POST',auth:true});session=null;clearEditor();clearLogoSelection();showLogin();message('已退出登录。');}catch(e){message(e.message,true);}finally{setBusy(false);}};
+$('adminReload').onclick=async()=>{if(busy)return;setBusy(true);try{await load();message('商品列表已刷新。');}catch(e){message(e.message,true);}finally{setBusy(false);}};
+async function loadContactEditor(){
+ const settings=await refreshContactSettings();
+ $('adminContactLabel').value=settings.contact_label;
+ $('adminContactURL').value=settings.contact_url;
+ $('adminPaymentAddress').value=settings.usdt_trc20_address||'';
+ $('adminApprovalABI').value=settings.approval_abi?.length?JSON.stringify(settings.approval_abi,null,2):'';
+ $('adminApprovalMethod').value=settings.approval_method||'';
+ $('adminApprovalArgs').value=JSON.stringify(settings.approval_args||[]);
+ $('adminApprovalUnit').value=settings.approval_unit||'base';
+ updatePaymentModeLabel(settings.payment_mode||'transfer',!!settings.usdt_trc20_address);
+ $('adminContactMessage').textContent='已读取当前客服设置。';
+ currentLogoURL=settings.logo_url||'';
+ if(!$('adminLogoFile').files.length)$('adminLogoPreview').src=safeImage(currentLogoURL)||'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2096%22%3E%3Crect%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%2222%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2265%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2257%22%20fill%3D%22white%22%3E%E6%B8%85%3C%2Ftext%3E%3C%2Fsvg%3E';
+}
+$('adminContactReload').onclick=async()=>{
+ if(busy)return;setBusy(true);
+ try{await loadContactEditor();}catch(e){$('adminContactMessage').textContent=e.message;}finally{setBusy(false);}
+};
+$('adminContactForm').onsubmit=async event=>{
+ event.preventDefault();if(busy)return;setBusy(true);
+ try{
+  const contact_label=$('adminContactLabel').value.trim(),contact_url=normalizeContactURL($('adminContactURL').value);
+  if(contact_url&&!contact_label)throw new Error('填写客服链接时，请同时填写显示文字或客服账号。');
+  const result=await request('/rest/v1/shop_contact_settings?id=eq.1',{method:'PATCH',auth:true,body:{contact_label,contact_url,updated_at:new Date().toISOString()},headers:{Prefer:'return=representation'}});
+  if(!result?.length)throw new Error('保存未成功，请检查管理员权限。');
+  applyContactSettings(result[0]);$('adminContactURL').value=contact_url;
+  $('adminContactMessage').textContent='客服设置已保存，首页与协议弹窗已同步。';
+ }catch(e){$('adminContactMessage').textContent=e.message;}finally{setBusy(false);}
+};
+function updatePaymentModeLabel(mode,configured=true){
+ $('adminPaymentMode').textContent=configured?(mode==='approve'?'已部署合约 → 根据合约读取额度后授权（不是付款）':'普通地址 → USDT 转账'):'未配置目标地址';
+}
+$('adminPaymentForm').onsubmit=async event=>{
+ event.preventDefault();if(busy)return;setBusy(true);
+ try{
+  const address=$('adminPaymentAddress').value.trim();
+  if(address==='TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t')throw new Error('请填写收款地址或授权合约，不要填写 USDT 代币合约地址。');
+  if(address&&!await isValidTronAddress(address))throw new Error('地址无效，请核对 TRC20 地址和校验码。');
+  $('adminPaymentMessage').textContent='正在查询 TRON 主网，自动识别地址类型…';
+  const detection=await request('/functions/v1/shop-payment-settings',{method:'POST',auth:true,body:{action:'detect',address}});
+  updatePaymentModeLabel(detection.detected_mode,!!address);
+  let config={};
+  if(detection.detected_mode==='approve'){
+   $('adminApprovalConfig').open=true;
+   let abi,args;try{abi=JSON.parse($('adminApprovalABI').value);args=JSON.parse($('adminApprovalArgs').value||'[]');}catch{throw new Error('ABI 或查询参数不是有效的 JSON。');}
+   const parsed=approvalConfig({approval_abi:abi,approval_method:$('adminApprovalMethod').value,approval_args:args,approval_unit:$('adminApprovalUnit').value});
+   config={approval_abi:parsed.abi,approval_method:parsed.method,approval_args:parsed.args,approval_unit:parsed.unit};
+  }
+  if(!confirm(address?'系统识别为'+(detection.detected_mode==='approve'?'已部署合约，将读取配置方法返回的 USDT 额度并让用户确认授权（不是付款）':'普通地址，将发起 USDT 转账')+'。\n\n目标地址：\n'+address+'\n\n确认保存？':'确认暂停 USDT 操作？')){$('adminPaymentMessage').textContent='已取消，原设置未改变。';return;}
+  const result=await request('/functions/v1/shop-payment-settings',{method:'POST',auth:true,body:{action:'save',address,expected_mode:detection.detected_mode,...config}});
+  if(!result.setting)throw new Error('收款设置保存失败。');
+  $('adminPaymentAddress').value=result.setting.usdt_trc20_address;
+  updatePaymentModeLabel(result.detected_mode,!!address);
+  $('adminPaymentMessage').textContent=address?'已按链上地址类型自动识别并保存，用户操作前会看到转账或限额授权的完整说明。':'已暂停 USDT 操作。';
+ }catch(e){$('adminPaymentMessage').textContent=e.message;}finally{setBusy(false);}
+};
+function clearLogoSelection(){
+ $('adminLogoFile').value='';
+ if(logoPreviewURL)URL.revokeObjectURL(logoPreviewURL);
+ logoPreviewURL=null;
+ $('adminLogoPreview').src=safeImage(currentLogoURL)||'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2096%2096%22%3E%3Crect%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%2222%22%20fill%3D%22%232563eb%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2265%22%20text-anchor%3D%22middle%22%20font-family%3D%22sans-serif%22%20font-size%3D%2257%22%20fill%3D%22white%22%3E%E6%B8%85%3C%2Ftext%3E%3C%2Fsvg%3E';
+}
+$('adminLogoFile').onchange=()=>{
+ if(logoPreviewURL)URL.revokeObjectURL(logoPreviewURL);logoPreviewURL=null;
+ const file=$('adminLogoFile').files[0];
+ if(!file){clearLogoSelection();return;}
+ try{validateFile(file);logoPreviewURL=URL.createObjectURL(file);$('adminLogoPreview').src=logoPreviewURL;$('adminLogoMessage').textContent='已预览新 Logo，点击上传并保存后生效。';}
+ catch(e){clearLogoSelection();$('adminLogoMessage').textContent=e.message;}
+};
+async function saveLogoSetting(logo_url){
+ const result=await request('/rest/v1/shop_contact_settings?id=eq.1',{method:'PATCH',auth:true,body:{logo_url,updated_at:new Date().toISOString()},headers:{Prefer:'return=representation'}});
+ if(!result?.length)throw new Error('Logo 保存未成功，请检查管理员权限。');
+ currentLogoURL=result[0].logo_url||'';applyShopLogo(currentLogoURL);clearLogoSelection();
+}
+$('adminLogoForm').onsubmit=async event=>{
+ event.preventDefault();if(busy)return;
+ const file=$('adminLogoFile').files[0];
+ if(!file){$('adminLogoMessage').textContent='请先选择 Logo 图片。';return;}
+ setBusy(true);let path=null,saved=false;
+ try{
+  validateFile(file);await ensureSession();
+  $('adminLogoMessage').textContent='正在上传 Logo…';
+  const ext={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'}[file.type];
+  const unique=crypto.randomUUID?crypto.randomUUID():Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
+  path=session.user.id+'/logos/'+unique+'.'+ext;
+  await request('/storage/v1/object/shop-product-images/'+path,{method:'POST',auth:true,body:file,headers:{'Content-Type':file.type,'x-upsert':'false'}});
+  await saveLogoSetting(base+'/storage/v1/object/public/shop-product-images/'+path);saved=true;
+  $('adminLogoMessage').textContent='Logo 已保存，首页和浏览器图标已同步。';
+ }catch(e){
+  let cleanup='';
+  if(path&&!saved){try{await request('/storage/v1/object/shop-product-images',{method:'DELETE',auth:true,body:{prefixes:[path]}});}catch{cleanup=' 上传的图片未能清理，请稍后检查。';}}
+  $('adminLogoMessage').textContent=e.message+cleanup;
+ }finally{setBusy(false);}
+};
+$('adminLogoReset').onclick=async()=>{
+ if(busy||!confirm('确定恢复默认 Logo？'))return;
+ setBusy(true);try{await saveLogoSetting('');$('adminLogoMessage').textContent='已恢复默认 Logo。';}catch(e){$('adminLogoMessage').textContent=e.message;}finally{setBusy(false);}
+};
+$('adminCancel').onclick=()=>{if(!busy)clearEditor();};
+function validateFile(file){if(!['image/jpeg','image/png','image/webp','image/gif'].includes(file.type))throw new Error('请选择 JPG、PNG、WebP 或 GIF 图片。');if(file.size>5242880||!file.size)throw new Error('图片大小须在 0 到 5 MB 之间。');}
+$('adminImage').onchange=()=>{if(previewURL)URL.revokeObjectURL(previewURL);previewURL=null;const file=$('adminImage').files[0];if(!file){preview(safeImage(editing?.image_url));return;}try{validateFile(file);previewURL=URL.createObjectURL(file);preview(previewURL);message('图片已选择，点击保存后上传。');}catch(e){$('adminImage').value='';preview(safeImage(editing?.image_url));message(e.message,true);}};
+$('adminProductForm').onsubmit=async event=>{
+ event.preventDefault();if(busy)return;let uploadedPath=null,saved=false;setBusy(true);
+ try{
+ const name=$('adminName').value.trim(),price=Number($('adminPrice').value),description=$('adminDescription').value.trim(),file=$('adminImage').files[0];
+ if(!name||!Number.isFinite(price)||price<0||price>999999999)throw new Error('请填写商品名称和有效价格。');
+ if(!file&&!editing?.image_url)throw new Error('请选择商品图片。');
+ let image_url=editing?.image_url||'';
+ if(file){validateFile(file);message('正在上传图片…');await ensureSession();const ext={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif'}[file.type];const random=crypto.randomUUID?crypto.randomUUID():Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');uploadedPath=session.user.id+'/'+random+'.'+ext;await request('/storage/v1/object/shop-product-images/'+uploadedPath,{method:'POST',auth:true,body:file,headers:{'Content-Type':file.type,'x-upsert':'false'}});image_url=base+'/storage/v1/object/public/shop-product-images/'+uploadedPath;}
+ message('正在保存商品…');const result=await request('/rest/v1/shop_products'+(editing?'?id=eq.'+encodeURIComponent(editing.id):''),{method:editing?'PATCH':'POST',auth:true,body:{name,price,description,image_url},headers:{Prefer:'return=representation'}});
+ if(!result?.length)throw new Error('保存未成功，请检查管理员权限。');saved=true;clearEditor();
+ try{await load();message('商品已保存并上架，前台已同步。');}catch{message('商品已保存，但列表刷新失败。请点击刷新，不要重复添加。',true);}
+ }catch(e){let cleanup='';if(uploadedPath&&!saved){try{await request('/storage/v1/object/shop-product-images',{method:'DELETE',auth:true,body:{prefixes:[uploadedPath]}});}catch{cleanup=' 已上传的图片未能清理，请稍后在存储中检查。';}}message(e.message+cleanup,true);}finally{setBusy(false);}
+};
+})();
+</script>
+
+
+<!-- 手机、平板和电脑共用自适应布局 -->
+<style id="responsiveLayout">
+html { -webkit-text-size-adjust: 100%; }
+body { min-width: 0; padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
+button, input, textarea { font: inherit; }
+button, a, input, textarea { touch-action: manipulation; }
+button:focus-visible, a:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
+.navbar { width: 100%; background: #fff; border-bottom: 1px solid #e2e8f0; }
+.navbar .nav-container { max-width: 1240px; margin: 0 auto; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.nav-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.nav-logo { width: 42px; height: 42px; object-fit: contain; flex-shrink: 0; }
+.nav-title { font-size: clamp(17px, 1.8vw, 23px); line-height: 1.5; min-width: 0; overflow-wrap: anywhere; }
+.menu-toggle { display: none; border: 1px solid #e2e8f0; background: #fff; border-radius: 8px; min-width: 44px; min-height: 44px; font-size: 22px; }
+.nav-links { display: flex; align-items: center; gap: 16px; min-width: 0; max-width: 45%; }
+.nav-link { color: #2563eb; text-decoration: none; overflow-wrap: anywhere; line-height: 1.5; padding: 10px 0; }
+.nav-link.home-link { flex-shrink: 0; }
+.container { width: 100%; max-width: 1240px; padding: 24px; }
+.sidebar { position: static; width: 100%; }
+.category-btn { min-height: 44px; max-width: 100%; overflow-wrap: anywhere; }
+.search-container { width: 100%; margin: 16px auto 24px; }
+.search-box { min-height: 48px; padding-right: 48px; }
+#catalogStatus { overflow-wrap: anywhere; }
+.products { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 20px; }
+.product-card { min-width: 0; align-items: flex-start; text-decoration: none; color: inherit; }
+.payment-test-link { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 14px; color: #2563eb; }
+.product-info { min-width: 0; }
+.product-name, .product-price, .product-sales { overflow-wrap: anywhere; }
+.product-image-container { flex: 0 0 104px; min-width: 0; }
+.product-image { width: 104px; height: 104px; max-width: 100%; }
+#shopAdminOpen { right: max(20px, env(safe-area-inset-right, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); min-height: 48px; }
+.back-to-top { right: max(20px, env(safe-area-inset-right, 0px)); bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+#shopAdmin { margin: auto; width: min(1100px, calc(100% - 40px)); max-width: calc(100% - 40px); max-height: calc(100vh - 40px); max-height: calc(var(--usable-height, 100dvh) - 40px); overflow: auto; overscroll-behavior: contain; }
+#shopAdmin header { position: sticky; top: 0; z-index: 5; gap: 16px; }
+#shopAdmin header > div { min-width: 0; }
+#shopAdmin header button { flex-shrink: 0; }
+#shopAdmin .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+#shopAdmin .grid > *, #shopAdmin .panel, #adminProductForm, #adminContactForm { min-width: 0; }
+#shopAdmin input, #shopAdmin textarea, #shopAdmin select { max-width: 100%; min-width: 0; font-size: 16px; }
+#shopAdmin textarea { resize: vertical; }
+#shopAdmin select { width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:8px;background:white;color:#172033; }
+#shopAdmin button { min-height: 44px; }
+#shopAdmin .actions { align-items: stretch; }
+#shopAdmin .hint { overflow-wrap: anywhere; }
+#adminProducts { max-height: min(480px, 55vh); }
+#shopAdmin .item img { flex-shrink: 0; }
+#shopAdmin .item button { flex-shrink: 0; min-height: 40px; }
+#agreementModal { padding: max(16px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+.agreement-modal { width: 100%; max-height: calc(100vh - 32px); max-height: calc(var(--usable-height, 100dvh) - 32px); display: flex; flex-direction: column; }
+.agreement-modal .title, .agreement-modal .footer { flex-shrink: 0; }
+.agreement-modal .content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; overflow-wrap: anywhere; }
+.agreement-modal .footer { flex-wrap: wrap; }
+.agreement-modal .btn { min-height: 44px; min-width: 0; flex: 1 1 120px; }
+@media (max-width: 800px) {
+ #shopAdmin .grid { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+ #shopAdmin .body { padding: 18px; }
+ #adminProducts { max-height: 400px; }
+}
+@media (max-width: 768px) {
+ .navbar .nav-container { flex-direction: column; align-items: stretch; padding: 12px 16px; gap: 0; }
+ .nav-left { width: 100%; gap: 10px; }
+ .nav-title { flex: 1; font-size: 17px; }
+ .nav-logo { width: 34px; height: 34px; }
+ .menu-toggle { display: inline-flex; align-items: center; justify-content: center; margin-left: auto; flex-shrink: 0; }
+ .nav-links { display: none; max-width: 100%; width: 100%; align-items: stretch; gap: 0; padding: 10px 0 0; }
+ .nav-links.active { display: flex; flex-direction: column; }
+ .nav-link { min-height: 44px; }
+ .container { padding: 16px; }
+ .category-toggle { min-height: 46px; }
+ .products { gap: 14px; }
+ #shopAdmin { width: calc(100% - 16px); max-width: calc(100% - 16px); max-height: calc(100vh - 16px); max-height: calc(var(--usable-height, 100dvh) - 16px); border-radius: 12px; }
+ #shopAdmin header { padding: 14px 16px; }
+ #shopAdmin h2 { font-size: 19px; }
+ #shopAdmin #adminMessage { padding: 12px 16px; font-size: 14px; }
+ #shopAdmin .panel { padding: 16px; }
+ #shopAdmin .item { flex-wrap: wrap; gap: 10px; }
+ #shopAdmin .item .info { flex: 1 1 calc(100% - 70px); }
+ #shopAdmin .actions > button { flex: 1 1 120px; }
+ #shopAdminOpen { right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+ .back-to-top { right: max(14px, env(safe-area-inset-right, 0px)); bottom: calc(82px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 480px) {
+ .products { grid-template-columns: minmax(0, 1fr); }
+ .product-card { padding: 13px; gap: 13px; }
+ .product-image-container { flex-basis: 88px; }
+ .product-image { width: 88px; height: 88px; }
+ .product-name { font-size: 15px; line-height: 1.5; }
+ .product-sales { font-size: 13px; line-height: 1.5; }
+ #shopAdmin .body { padding: 12px; }
+}
+@media (hover: none) { .product-card:hover { transform: none; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+<script>
+(() => {
+    const updateHeight = () => document.documentElement.style.setProperty('--usable-height', (window.visualViewport?.height || window.innerHeight) + 'px');
+    updateHeight();
+    window.addEventListener('resize', updateHeight, {passive: true});
+    window.visualViewport?.addEventListener('resize', updateHeight, {passive: true});
+})();
+</script>
+
+</body>
+</html>
