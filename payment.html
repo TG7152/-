@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer"><title>清音铺子 - 订单支付</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f5f5;color:#263247;font:16px Arial,sans-serif;padding-bottom:40px}.container{max-width:720px;margin:auto;padding:20px}h1{text-align:center;font-size:26px}.card{background:white;padding:24px;border-radius:12px;box-shadow:0 2px 8px #0001}.product{display:flex;gap:16px;align-items:center}.product img{width:100px;height:100px;object-fit:cover;border-radius:8px}.product h2{font-size:20px;overflow-wrap:anywhere}.price{color:#d44c4c;font-size:22px}.notice{background:#fff8e6;padding:14px;border-radius:8px;line-height:1.7;margin:20px 0}label{display:block;margin:16px 0 7px}input{width:100%;padding:12px;border:1px solid #ccd3df;border-radius:8px;font:inherit}button,a.back{display:block;width:100%;padding:14px;margin-top:12px;min-height:48px;border:0;border-radius:9px;font:inherit;background:#007bff;color:white;cursor:pointer;text-align:center;text-decoration:none}button:disabled{opacity:.5;cursor:not-allowed}a.back{background:#eee;color:#333}.row{padding:10px 0;border-bottom:1px solid #eee;overflow-wrap:anywhere;line-height:1.6}.row span{display:block;color:#64748b;font-size:14px}#statusBox{white-space:pre-wrap;overflow-wrap:anywhere;padding:14px;background:#edf4ff;border-radius:8px;margin-top:16px;line-height:1.6}#statusBox[data-error=true]{background:#ffe9e9;color:#a32323}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;padding:16px}#contact{color:#2563eb}@media(max-width:480px){.container{padding:14px}.card{padding:18px}.product img{width:80px;height:80px}}
+</style>
+</head><body><main class="container"><h1>订单支付</h1><section class="card">
+<div class="product"><img id="productImage" alt="商品" hidden><div><h2 id="productName">正在读取商品…</h2><div class="price"><span id="price">—</span> USDT</div></div></div>
+<div class="notice">使用 TRON 主网 USDT（TRC20）按订单金额转账。创建订单时的消息签名仅验证钱包归属，不会转账或授权。请从订单绑定的钱包付款，并在有效期内完成支付。钱包需有足够的 TRX 或能量支付网络费用。</div>
+<div id="draft"><label for="quantity">数量（1–99）</label><input id="quantity" type="number" min="1" max="99" step="1" value="1"><label for="email">联系邮箱（可选，仅保存到订单）</label><input id="email" type="email" maxlength="254" autocomplete="email"><button id="create" disabled>连接钱包并创建订单</button></div>
+<section id="orderPanel" hidden>
+<div class="row"><span>订单编号</span><b id="orderId"></b></div>
+<div class="row"><span>付款钱包</span><b id="payer"></b></div>
+<div class="row"><span>商家收款地址</span><b id="recipient"></b></div>
+<div class="row"><span>订单有效期至</span><b id="expires"></b></div>
+<div class="row"><span>订单状态</span><b id="orderStatus"></b></div>
+<button id="send" disabled>打开钱包确认付款</button>
+<label for="txid">付款交易哈希（钱包发送后自动填入，也可手动粘贴）</label><input id="txid" maxlength="64" autocomplete="off" spellcheck="false">
+<button id="verify">核验链上付款</button><button id="refresh">刷新订单状态</button>
+<div id="delivery" hidden><h3>交付内容</h3><pre id="cards"></pre><p>请妥善保存交付内容与订单查询凭证；邮箱不会自动收到邮件。</p></div>
+</section>
+<div id="statusBox" role="status" aria-live="polite">正在连接商店…</div>
+<p><a id="contact" hidden rel="noopener noreferrer" target="_blank">联系客服</a></p><a class="back" href="./">返回商品页</a>
+</section></main>
+<script>
+'use strict';
+const BASE='https://fbyuiymjrlfsazfvgghz.supabase.co',KEY='sb_publishable_Lwg77Ah7EZ6ec4D4FaQRrA_897HRCtf';
+const USDT='TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+const $=id=>document.getElementById(id),pid=new URLSearchParams(location.search).get('id');
+let product=null,receipt=null,order=null,busy=false,tw=null,sendAttempted=false;
+const labels={pending:'等待付款',expired:'订单已过期，请勿继续付款',paid_awaiting_stock:'已确认付款，等待补货',fulfilled:'已完成交付'};
+function status(text,error=false){$('statusBox').textContent=text;$('statusBox').dataset.error=String(error);}
+async function api(path,body){
+ const r=await fetch(BASE+path,{method:body===undefined?'GET':'POST',headers:{apikey:KEY,...(body===undefined?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(25000)});
+ const data=await r.json();if(!r.ok){const e=Error(data.message||data.error||'请求失败（'+r.status+'）');e.httpStatus=r.status;throw e;}return data;
+}
+const checkout=b=>api('/functions/v1/shop-checkout',b);
+function randomToken(){return Array.from(crypto.getRandomValues(new Uint8Array(32)),x=>x.toString(16).padStart(2,'0')).join('');}
+async function sha(s){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s))),x=>x.toString(16).padStart(2,'0')).join('');}
+function messageFor(b,hash){return '清音铺子 · 创建订单（仅验证钱包归属，不转账、不授权）\n'+JSON.stringify({request_id:b.request_id,product_id:b.product_id,quantity:b.quantity,email:b.email,payer:b.payer,token_hash:hash,issued_at:b.issued_at});}
+function allowedImage(s){try{const u=new URL(s);return u.protocol==='https:'?u.href:'';}catch{return '';}}
+function wallet(){return window.tronLink?.tronWeb||window.tronWeb;}
+async function connect(){
+ if(window.tronLink?.request)await window.tronLink.request({method:'tron_requestAccounts'});
+ const w=wallet();if(!w?.defaultAddress?.base58||!w.trx?.signMessageV2)throw Error('请在支持 TRON 的钱包内置浏览器打开，或安装并解锁 TronLink。');
+ // The standard injected API exposes the active full-node endpoint.
+ const host=String(w.fullNode?.host||'');if(!/^https:\/\/api\.trongrid\.io\/?$/i.test(host))throw Error('请先将钱包网络切换到 TRON 主网（api.trongrid.io）。');
+ return w;
+}
+function saveReceipt(){
+ const u=new URL(location.href);u.hash=new URLSearchParams({order:receipt.order_id,token:receipt.token}).toString();history.replaceState(null,'',u);
+ // The URL fragment stays in the browser and is not sent as an HTTP query.
+ try{sessionStorage.setItem('qingyin-checkout:'+receipt.order_id,JSON.stringify({...receipt,txid:$('txid').value,sendAttempted}));}catch{}
+}
+function restore(){
+ const f=new URLSearchParams(location.hash.slice(1));const id=f.get('order'),token=f.get('token');
+ if(!/^[0-9a-f-]{36}$/i.test(id||'')||!/^[0-9a-f]{64}$/.test(token||''))return;
+ receipt={order_id:id,token};try{const old=JSON.parse(sessionStorage.getItem('qingyin-checkout:'+id)||'null');if(old?.token===token){$('txid').value=old.txid||'';sendAttempted=!!old.sendAttempted;}}catch{}
+}
+function render(snapshot){
+ order=snapshot.order;if(!order)throw Error('订单响应不完整，请刷新查询。');
+ $('draft').hidden=true;$('orderPanel').hidden=false;$('productName').textContent=order.product_name+' × '+order.quantity;$('price').textContent=order.total_amount;
+ $('orderId').textContent=order.id;$('payer').textContent=order.payer_address;$('recipient').textContent=order.recipient_address;$('expires').textContent=new Date(order.expires_at).toLocaleString();$('orderStatus').textContent=labels[order.status]||order.status;
+ if(order.txid)$('txid').value=order.txid;
+ $('delivery').hidden=order.status!=='fulfilled';$('cards').textContent=(snapshot.cards||[]).join('\n\n');
+ status(snapshot.message||labels[order.status]||'订单已更新');buttons();
+}
+function buttons(){
+ for(const id of ['create','send','verify','refresh'])$(id).disabled=busy;
+ $('create').disabled=busy||!product;
+ $('send').disabled=busy||!order||order.status!=='pending'||Date.now()>=Date.parse(order.expires_at)||sendAttempted||!!$('txid').value.trim();
+ $('verify').disabled=busy||!order||!['pending','expired'].includes(order.status);
+ $('refresh').disabled=busy||!receipt;
+}
+async function run(fn){if(busy)return;busy=true;buttons();try{await fn();}catch(e){status(e.name==='TimeoutError'?'请求超时。若已签名或付款，请查询订单并核对钱包记录，避免重复操作。':e.message,true);}finally{busy=false;buttons();}}
+$('create').onclick=()=>run(async()=>{
+ if(!product||receipt)return;const quantity=Number($('quantity').value),email=$('email').value.trim();
+ if(!Number.isInteger(quantity)||quantity<1||quantity>99)throw Error('请输入 1–99 的整数数量。');
+ if(!$('email').checkValidity())throw Error('请输入有效邮箱或留空。');
+ tw=await connect();
+ // Reuse the same order ID and token on retry, including uncertain network responses.
+ const draftKey='qingyin-draft:'+product.id;
+ let draft;try{draft=JSON.parse(sessionStorage.getItem(draftKey)||'null');}catch{}
+ if(!draft||draft.payer!==tw.defaultAddress.base58||draft.quantity!==quantity||draft.email!==email)draft={request_id:crypto.randomUUID(),token:randomToken(),product_id:product.id,quantity,email,payer:tw.defaultAddress.base58};
+ sessionStorage.setItem(draftKey,JSON.stringify(draft));
+ const b={...draft};if(!b.signature||Date.now()-b.issued_at>290000){b.issued_at=Date.now();const msg=messageFor(b,await sha(b.token));status('请在钱包确认创建订单的消息签名（不转账、不授权）。');b.signature=await tw.trx.signMessageV2(msg);sessionStorage.setItem(draftKey,JSON.stringify(b));}
+ if(wallet()?.defaultAddress?.base58!==b.payer)throw Error('钱包账号已改变，请重新创建订单。');
+ receipt={order_id:b.request_id,token:b.token};saveReceipt();
+ // Save the query credential before the request, so a lost response remains recoverable.
+ try{render(await checkout({action:'create',...b}));sessionStorage.removeItem(draftKey);}catch(e){if(e.httpStatus){receipt=null;const u=new URL(location.href);u.hash='';history.replaceState(null,'',u);}else{$('draft').hidden=true;$('orderPanel').hidden=false;$('orderId').textContent=receipt.order_id;}throw e;}
+});
+$('send').onclick=()=>run(async()=>{
+ render(await checkout({action:'status',...receipt}));
+ if(order.status!=='pending'||Date.now()>=Date.parse(order.expires_at)||sendAttempted||$('txid').value.trim())throw Error('订单当前不可再次付款，请先核对订单和钱包交易记录。');
+ tw=await connect();if(tw.defaultAddress.base58!==order.payer_address)throw Error('请切换到订单绑定的付款钱包。');
+ if(!confirm('TRON 主网 USDT 转账\n金额：'+order.total_amount+' USDT\n收款地址：'+order.recipient_address+'\n请在钱包再次核对上述信息。'))return;
+ const m=String(order.total_amount).match(/^(\d+)(?:\.(\d{1,6}))?$/);if(!m)throw Error('订单金额格式异常。');
+ const amount=(BigInt(m[1])*1000000n+BigInt((m[2]||'').padEnd(6,'0'))).toString();
+ sendAttempted=true;saveReceipt();status('请在钱包确认转账。发送后请勿重复付款。');
+ try{
+ const contract=await tw.contract().at(USDT);
+ const tx=await contract.transfer(order.recipient_address,amount).send({feeLimit:200000000,shouldPollResponse:false});
+ const id=typeof tx==='string'?tx:tx?.txid||tx?.txID;
+ if(!/^[0-9a-f]{64}$/i.test(id||''))throw Error('钱包未返回有效交易哈希，请在钱包交易记录中查询。');
+ $('txid').value=id;saveReceipt();status('交易已提交，尚未确认付款。请点击“核验链上付款”，未固化时稍后再查。');
+ }catch(e){throw Error((e.message||'发送结果未知')+'\n请先检查钱包交易记录；为避免重复付款，本页已停用再次发送。');}
+});
+$('verify').onclick=()=>run(async()=>{const txid=$('txid').value.trim();if(!/^[0-9a-f]{64}$/i.test(txid))throw Error('请输入 64 位交易哈希。');saveReceipt();render(await checkout({action:'verify',...receipt,txid}));});
+$('refresh').onclick=()=>run(async()=>render(await checkout({action:'status',...receipt})));
+$('txid').oninput=buttons;
+async function init(){
+ restore();if(receipt){render(await checkout({action:'status',...receipt}));return;}
+ if(!pid||pid.length>200)throw Error('缺少有效商品编号，请从商品首页重新进入。');
+ const rows=await api('/rest/v1/shop_products?'+new URLSearchParams({id:'eq.'+pid,select:'id,name,price,image_url',limit:'1'}));product=rows[0];if(!product)throw Error('商品不存在或已下架，请返回首页选择。');
+ $('productName').textContent=product.name;$('price').textContent=product.price;
+ const img=allowedImage(product.image_url);if(img){$('productImage').src=img;$('productImage').hidden=false;}
+ status('商品已从数据库读取。请连接付款钱包创建订单；最终金额以服务端订单为准。');
+ try{const s=(await api('/rest/v1/shop_contact_settings?id=eq.1&select=contact_label,contact_url'))[0];if(s?.contact_url&&/^(https:\/\/|mailto:|tel:)/.test(s.contact_url)){$('contact').href=s.contact_url;$('contact').textContent=s.contact_label||'联系客服';$('contact').hidden=false;}}catch{}
+}
+run(init);
+</script></body></html>
