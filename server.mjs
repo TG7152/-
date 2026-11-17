@@ -133,7 +133,7 @@ async function readJson(req) {
   }
 }
 
-export function createApp({ supabaseUrl, key, origin, secureCookies = false, upstreamFetch = fetch }) {
+export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCookies = false, upstreamFetch = fetch }) {
   const upstreamUrl = new URL(supabaseUrl);
   if (upstreamUrl.protocol !== 'https:' || upstreamUrl.origin !== upstreamUrl.href.slice(0, -1) || upstreamUrl.username || upstreamUrl.password) {
     throw new Error('SUPABASE_URL 必须是无路径的 HTTPS 项目 URL。');
@@ -228,7 +228,16 @@ export function createApp({ supabaseUrl, key, origin, secureCookies = false, ups
       const offset = /^[0-9]{1,7}$/.test(offsetValue) ? Number(offsetValue) : 0;
       if (method === 'POST' && path.startsWith('/api/')) {
         const expectedOrigin = origin || (secureCookies ? 'https://' : 'http://') + req.headers.host;
-        if (req.headers.origin !== expectedOrigin) throw new HttpError(403, '请求来源无效。');
+        // Codespaces rewrites the browser Origin to its internal localhost forwarding target.
+        const proxyHost = `localhost:${codespacesPort}`;
+        const fromCodespaces = codespacesPort && origin &&
+          req.headers.origin === `https://${proxyHost}` &&
+          req.headers.host === proxyHost &&
+          req.headers['x-forwarded-host'] === new URL(origin).host &&
+          req.headers['x-forwarded-proto'] === 'https' &&
+          req.headers['sec-fetch-site'] === 'same-origin' &&
+          ['cors', 'same-origin'].includes(req.headers['sec-fetch-mode']);
+        if (req.headers.origin !== expectedOrigin && !fromCodespaces) throw new HttpError(403, '请求来源无效。');
       }
       if (method === 'POST' && ['/api/auth/login','/api/auth/signup'].includes(path)) {
         const { email, password } = await readJson(req);
@@ -326,6 +335,7 @@ export function startupOptions(env) {
     port,
     host:env.HOST || (codespace ? '0.0.0.0' : '127.0.0.1'),
     origin,
+    codespacesPort:codespace ? port : undefined,
     secureCookies:codespace || env.COOKIE_SECURE === 'true',
     supabaseUrl:env.SUPABASE_URL || 'https://plukopgifmrlyjwqryqu.supabase.co',
     key:env.SUPABASE_PUBLISHABLE_KEY || example.SUPABASE_PUBLISHABLE_KEY
