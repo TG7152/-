@@ -1,0 +1,11 @@
+{
+  "name": "Qingyin Exchange",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:5.1-24-bookworm",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "清音交易所",
+      "onAutoForward": "notify"
+    }
+  }
+}
