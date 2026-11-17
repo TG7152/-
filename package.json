@@ -1,0 +1,11 @@
+{
+  "name": "qingyin-exchange-recovery",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20.12" },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  }
+}
