@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
-import { createReferenceMarketData } from './market-data.mjs';
+import { createReferenceMarketData, createReferenceMarketStreams } from './market-data.mjs';
 
 const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -134,7 +134,7 @@ async function readJson(req) {
   }
 }
 
-export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCookies = false, upstreamFetch = fetch, marketFetch = fetch }) {
+export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCookies = false, upstreamFetch = fetch, marketFetch = fetch, marketSocket }) {
   const upstreamUrl = new URL(supabaseUrl);
   if (upstreamUrl.protocol !== 'https:' || upstreamUrl.origin !== upstreamUrl.href.slice(0, -1) || upstreamUrl.username || upstreamUrl.password) {
     throw new Error('SUPABASE_URL 必须是无路径的 HTTPS 项目 URL。');
@@ -147,6 +147,7 @@ export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCook
     throw new Error('请配置 Supabase publishable key。');
   }
   const referenceMarket = createReferenceMarketData({ fetchImpl:marketFetch });
+  const streamMarket = createReferenceMarketStreams({ openSocket:marketSocket });
 
   async function upstream(path, token, body) {
     const headers = { apikey: key, accept: 'application/json' };
@@ -184,6 +185,28 @@ export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCook
     return upstream('/rest/v1/' + table + '?' + query, token);
   }
 
+  async function isActiveMarket(symbol) {
+    const query = new URLSearchParams({select:'symbol',symbol:'eq.' + symbol,status:'eq.active',limit:'1'});
+    return (await upstream('/rest/v1/public_markets?' + query)).length > 0;
+  }
+
+  async function sendMarketStream(res,symbol,interval) {
+    const unsubscribe = await streamMarket(symbol,interval,isActiveMarket,{
+      send(update) {
+        if (!res.writableEnded && !res.destroyed && !res.write(`data: ${JSON.stringify(update)}\n\n`)) res.end();
+      },
+      close() { res.end(); }
+    });
+    if (res.destroyed) return unsubscribe();
+    res.writeHead(200,{'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache, no-transform','X-Accel-Buffering':'no'});
+    res.write('retry: 4000\n\n');
+    const heartbeat = setInterval(() => res.write(': heartbeat\n\n'),15_000);
+    res.once('close',() => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    });
+  }
+
   function writeCookies(res, session) {
     const suffix = '; HttpOnly; SameSite=Strict; Path=/' + (secureCookies ? '; Secure' : '');
     const maxAge = Math.max(1, Math.min(86400, Number(session?.expires_in) || 3600));
@@ -217,11 +240,11 @@ export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCook
       const path = url.pathname;
       if (req.method === 'GET' && path === '/healthz') return send(res, 200, { status: 'ok' });
       if (req.method === 'GET' && path === '/api/data/marketQuote') {
-        const result = await referenceMarket(url.searchParams.get('symbol'),url.searchParams.get('interval'),async symbol => {
-          const query = new URLSearchParams({select:'symbol',symbol:'eq.' + symbol,status:'eq.active',limit:'1'});
-          return (await upstream('/rest/v1/public_markets?' + query)).length > 0;
-        });
+        const result = await referenceMarket(url.searchParams.get('symbol'),url.searchParams.get('interval'),isActiveMarket);
         return send(res,200,result);
+      }
+      if (req.method === 'GET' && path === '/api/data/marketStream') {
+        return await sendMarketStream(res,url.searchParams.get('symbol'),url.searchParams.get('interval'));
       }
       if (req.method === 'GET' && assets.has(path)) {
         const [file, type] = assets.get(path);

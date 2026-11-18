@@ -3,7 +3,7 @@ const main = $('#main');
 const modal = $('#modal');
 const state = {
   session: null, role: null, sessionReady: false, markets: [], assets: [], tickers: {}, settings: {},
-  market: '', interval: '1m', quoteSource: 'reference', filter: '', adminTab: 'overview', walletTab: 'balances',
+  market: '', interval: '1s', quoteSource: 'reference', filter: '', adminTab: 'overview', walletTab: 'balances',
   tradeTab: 'book', adminAccount: null, revision: 0, marketRevision: 0
 };
 const requestKeys = new Map();
@@ -230,7 +230,7 @@ function tradeShell() {
   const reference = state.quoteSource === 'reference';
   const ticker = !reference && market ? state.tickers[market.id] : null;
   const sourceTabs = tabs([['reference','Binance 参考行情'],['exchange','本站成交 K 线']],state.quoteSource,'quote-source');
-  const levels = ['1m','5m','15m','1h','4h','1d'].map(i => [i,i]);
+  const levels = (reference ? ['1s','1m','5m','15m','1h','4h','1d'] : ['1m','5m','15m','1h','4h','1d']).map(i => [i,i]);
   const canTrade = Boolean(market?.status === 'active' && state.settings.spot_trading_enabled === true);
   const orderForm = state.session ?
     form('submit_limit_order',
@@ -250,7 +250,7 @@ function tradeShell() {
         ${section(market?.symbol || '市场行情', `<div class="panel-head">${sourceTabs}</div>
           <div id="chart-price" class="price-top">${chartPrices(ticker,reference)}</div>
           <div id="chart" class="chart-wrap">${empty(market ? '正在读取 K 线…' : '暂无交易对')}</div>
-          <div class="panel-head"><small id="chart-info" class="muted">${reference ? '参考行情约每 10 秒更新，不参与本站撮合。' : (ticker?.updated_at ? '行情更新 ' + date(ticker.updated_at) : '')}</small></div>`, tabs(levels,state.interval,'interval'))}
+          <div class="panel-head"><small id="chart-info" class="muted">${reference ? '正在连接 Binance 参考行情…' : (ticker?.updated_at ? '行情更新 ' + date(ticker.updated_at) : '')}</small></div>`, tabs(levels,state.interval,'interval'))}
         ${section(reference ? '参考市场数据' : '本站市场数据', body(`<div id="chart-metrics" class="grid-two">${chartMetrics(ticker,reference)}</div>`))}
       </div>
       <div class="stack trade-actions">
@@ -284,12 +284,62 @@ function candleChart(input) {
 }
 
 let activeMarketLoad = 0;
+let referenceStream;
+let referenceSnapshot;
+let lastCandleEvent = 0;
+
+function stopReferenceStream() {
+  referenceStream?.close();
+  referenceStream = undefined;
+  referenceSnapshot = undefined;
+  lastCandleEvent = 0;
+}
+
+function displayReference(updateChart,updateTicker) {
+  const {candles,ticker,source,interval,updated_at} = referenceSnapshot;
+  if (updateChart) $('#chart').innerHTML = candleChart(candles);
+  if (updateTicker) {
+    $('#chart-price').innerHTML = chartPrices(ticker,true);
+    $('#chart-metrics').innerHTML = chartMetrics(ticker,true);
+  }
+  const mode = lastCandleEvent ? (interval === '1s' ? '秒级推送' : '实时推送') : '快照';
+  $('#chart-info').textContent = `${source} 参考行情 · ${mode} · ${time(updated_at || ticker.updated_at)} · 不参与本站撮合`;
+}
+
+function connectReferenceStream(market,interval) {
+  if (referenceStream || typeof EventSource !== 'function') return;
+  const stream = new EventSource('/api/data/marketStream?' + new URLSearchParams({symbol:market,interval}));
+  referenceStream = stream;
+  stream.addEventListener('message',event => {
+    if (referenceStream !== stream || !referenceSnapshot) return;
+    const update = JSON.parse(event.data);
+    if (update.candle) {
+      const bars = referenceSnapshot.candles;
+      const index = bars.findIndex(bar => bar.open_time === update.candle.open_time);
+      if (index >= 0) bars[index] = update.candle;
+      else if (!bars.length || update.candle.open_time > bars.at(-1).open_time) bars.push(update.candle);
+      if (bars.length > 90) bars.shift();
+      lastCandleEvent = Date.now();
+    }
+    if (update.ticker) referenceSnapshot.ticker = update.ticker;
+    const eventTime = update.updated_at || update.ticker?.updated_at;
+    if (eventTime && eventTime > (referenceSnapshot.updated_at || '')) referenceSnapshot.updated_at = eventTime;
+    displayReference(Boolean(update.candle),Boolean(update.ticker));
+  });
+  stream.addEventListener('error',() => {
+    if (referenceStream !== stream || !referenceSnapshot) return;
+    lastCandleEvent = 0;
+    displayReference(false,false);
+  });
+}
+
 async function loadMarket({chartOnly = false} = {}) {
   if (!state.market || !$('#chart')) return;
   const revision = ++state.marketRevision;
   activeMarketLoad = revision;
   const {market,interval,quoteSource,tradeTab} = state;
   const reference = quoteSource === 'reference';
+  const started = Date.now();
   const chartRequest = reference
     ? api('data/marketQuote?' + new URLSearchParams({symbol:market,interval}))
     : rpc('get_public_candles',{market_symbol:market,interval,limit:90});
@@ -297,11 +347,15 @@ async function loadMarket({chartOnly = false} = {}) {
     try {
       const result = await chartRequest;
       if (revision !== state.marketRevision) return;
-      $('#chart').innerHTML = candleChart(reference ? result.candles : result);
-      if (!reference) return;
-      $('#chart-price').innerHTML = chartPrices(result.ticker,true);
-      $('#chart-metrics').innerHTML = chartMetrics(result.ticker,true);
-      $('#chart-info').textContent = `${result.source} 参考行情 · ${time(result.ticker.updated_at)} · 不参与本站撮合`;
+      if (!reference) {
+        $('#chart').innerHTML = candleChart(result);
+        return;
+      }
+      if (lastCandleEvent > started) return;
+      lastCandleEvent = 0;
+      referenceSnapshot = result;
+      displayReference(true,true);
+      connectReferenceStream(market,interval);
     } catch (error) {
       if (revision !== state.marketRevision) return;
       if (!chartOnly || !$('#chart svg')) $('#chart').innerHTML = errorBlock(error);
@@ -712,6 +766,7 @@ async function performMutation(name, payload = {}) {
 async function render() {
   const revision = ++state.revision;
   ++state.marketRevision;
+  stopReferenceStream();
   if (!state.sessionReady) return;
   renderNav();
   main.setAttribute('aria-busy','true');
@@ -776,6 +831,7 @@ document.addEventListener('click', async event => {
       await render();
     } else if (action === 'market' || action === 'interval' || action === 'trade-tab' || action === 'quote-source') {
       state[{market:'market',interval:'interval','trade-tab':'tradeTab','quote-source':'quoteSource'}[action]] = value;
+      if (state.quoteSource === 'exchange' && state.interval === '1s') state.interval = '1m';
       await render();
     } else if (action === 'wallet-tab' || action === 'finance-tab') {
       state[action === 'wallet-tab' ? 'walletTab' : 'adminTab'] = value;
@@ -822,7 +878,7 @@ modal.addEventListener('close', () => {
 window.addEventListener('hashchange', () => { void render(); });
 
 setInterval(() => {
-  if (!document.hidden && !isAdminPage() && current() === 'trade' && state.quoteSource === 'reference' && !activeMarketLoad) {
+  if (!document.hidden && !isAdminPage() && current() === 'trade' && state.quoteSource === 'reference' && !activeMarketLoad && Date.now() - lastCandleEvent > 6500) {
     void loadMarket({chartOnly:true});
   }
 },10_000);
