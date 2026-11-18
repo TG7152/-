@@ -26,7 +26,7 @@ export function createReferenceMarketData({ fetchImpl = fetch, now = Date.now } 
     try {
       const response = await fetchImpl(url, { redirect:'error', signal:AbortSignal.timeout(6000) });
       if (!response.ok) {
-        if (response.status === 400) throw new MarketDataError(404, '该交易对没有 Binance 参考行情。');
+        if (response.status === 400) throw new MarketDataError(404, '该交易对暂无参考行情。');
         throw new MarketDataError(502, '参考行情暂时不可用。');
       }
       return await response.json();

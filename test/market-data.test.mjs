@@ -50,7 +50,9 @@ test('the backend separates reference prices from Supabase order data',async t =
   const url = 'http://127.0.0.1:' + server.address().port + '/api/data/marketQuote?interval=1m&symbol=';
   const response = await fetch(url + 'BTC%2FUSDT');
   assert.equal(response.status,200);
-  assert.equal((await response.json()).ticker.last_price,'103.13');
+  const payload = await response.json();
+  assert.equal(payload.ticker.last_price,'103.13');
+  assert.equal(payload.source,undefined);
   assert.equal((await fetch(url + 'ETH%2FUSDT')).status,404);
 });
 

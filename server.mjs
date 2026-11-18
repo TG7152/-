@@ -26,7 +26,7 @@ const ownTables = {
   balances: ['wallet_balances', 'asset_id,symbol,asset_name,decimals,available_balance,locked_balance', 'symbol.asc', 'user_id'],
   orders: ['orders', 'id,market_id,side,price,quantity,filled_quantity,status,created_at', 'created_at.desc', 'user_id'],
   recharges: ['recharge_requests', 'id,payment_type,fiat_currency,paid_amount,token_amount,status,review_note,created_at', 'created_at.desc', 'user_id'],
-  withdrawals: ['withdrawals', 'id,asset_id,payout_type,fiat_currency,fiat_amount,amount,fee,status,review_note,rejection_reason,created_at', 'created_at.desc', 'user_id'],
+  withdrawals: ['withdrawals', 'id,asset_id,payout_type,fiat_currency,fiat_amount,amount,fee,status,tx_hash,review_note,rejection_reason,created_at', 'created_at.desc', 'user_id'],
   accounts: ['withdrawal_accounts', 'id,asset_id,label,network_code,account_type,fiat_currency,bank_name,account_last4,is_active', 'created_at.desc', 'user_id'],
   inbox: ['user_notifications', 'id,kind,title,body,read_at,created_at', 'created_at.desc', 'user_id'],
   adminRole: ['admin_members', 'role', '', 'user_id'],
@@ -39,6 +39,7 @@ const adminTables = {
   adminAudit: ['audit_logs', 'id,action,resource_type,resource_id,created_at', 'created_at.desc', ['super_admin','operations','compliance']],
   adminRisk: ['risk_flags', 'id,user_id,subject_type,severity,reason,status,created_at', 'created_at.desc', ['super_admin','operations','compliance','support']],
   adminCredit: ['internal_credit_allocations', 'id,recipient_user_id,amount,reason,created_at', 'created_at.desc', ['super_admin','finance']],
+  adminDeductions: ['usdt_deductions', 'request_id,user_id,amount,reason,created_at', 'created_at.desc', ['super_admin','finance']],
   adminOrders: ['orders', 'id,user_id,market_id,side,price,quantity,filled_quantity,status,created_at', 'created_at.desc', ['super_admin','operations','support','compliance']],
   adminKyc: ['kyc_cases', 'id,user_id,provider,level,status,created_at,reviewed_at', 'created_at.desc', ['super_admin','operations','compliance','support']]
 };
@@ -68,8 +69,10 @@ const adminCalls = {
   admin_recharge_queue: [],
   admin_review_recharge: ['recharge_id','decision','reason'],
   admin_review_withdrawal: ['withdrawal_id','decision','reason'],
+  admin_complete_withdrawal: ['withdrawal_id','payment_reference'],
   admin_reveal_withdrawal_bank: ['withdrawal_id'],
   admin_allocate_internal_credit: ['recipient_user_id','amount','reason','request_id'],
+  admin_adjust_usdt: ['user_id','direction','amount','reason','request_id'],
   admin_transfer_usdt: ['recipient_user_id','amount','reason','request_id'],
   admin_create_asset: ['symbol','name','asset_type','decimals','network_code','network_name','contract_address'],
   admin_set_asset_status: ['symbol','status','trading_enabled'],
@@ -149,15 +152,16 @@ export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCook
   const referenceMarket = createReferenceMarketData({ fetchImpl:marketFetch });
   const streamMarket = createReferenceMarketStreams({ openSocket:marketSocket });
 
-  async function upstream(path, token, body) {
+  async function upstream(path, token, body, { method, prefer } = {}) {
     const headers = { apikey: key, accept: 'application/json' };
     if (token) headers.authorization = 'Bearer ' + token;
     if (body !== undefined) headers['content-type'] = 'application/json';
+    if (prefer) headers.prefer = prefer;
     let response;
     let data;
     try {
       response = await upstreamFetch(new URL(path, upstreamUrl), {
-        method: body === undefined ? 'GET' : 'POST',
+        method: method ?? (body === undefined ? 'GET' : 'POST'),
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
         redirect: 'error',
@@ -172,7 +176,8 @@ export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCook
       const status = response.status >= 500 ? 502 : response.status;
       const code = data?.code || data?.error_code || '';
       const detail = data?.message || data?.msg || data?.error_description;
-      const message = status === 502 ? 'Supabase 服务暂时不可用。' : String(detail || '请求被数据库拒绝。').slice(0, 350);
+      const authMessages = {invalid_credentials:'邮箱或密码不正确。',email_not_confirmed:'请先验证邮箱再登录。',over_email_send_rate_limit:'请求发送过于频繁，请稍后再试。'};
+      const message = status === 502 ? '服务暂时不可用。' : (Object.hasOwn(authMessages,code) ? authMessages[code] : String(detail || '请求被数据库拒绝。').slice(0,350));
       throw new HttpError(status, message, code);
     }
     return data;
@@ -241,7 +246,8 @@ export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCook
       if (req.method === 'GET' && path === '/healthz') return send(res, 200, { status: 'ok' });
       if (req.method === 'GET' && path === '/api/data/marketQuote') {
         const result = await referenceMarket(url.searchParams.get('symbol'),url.searchParams.get('interval'),isActiveMarket);
-        return send(res,200,result);
+        const { source: provider, ...quote } = result;
+        return send(res,200,quote);
       }
       if (req.method === 'GET' && path === '/api/data/marketStream') {
         return await sendMarketStream(res,url.searchParams.get('symbol'),url.searchParams.get('interval'));
@@ -312,6 +318,33 @@ export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCook
         }
         writeCookies(res, null);
         return send(res, 200, { user: null });
+      }
+      if (method === 'GET' && path === '/api/data/unread') {
+        if (!subject) throw new HttpError(401,'请先登录。');
+        const query = new URLSearchParams({select:'id,kind,title,created_at',user_id:'eq.' + subject,read_at:'is.null',order:'created_at.desc,id.desc',limit:'100'});
+        return send(res,200,await upstream('/rest/v1/user_notifications?' + query,token));
+      }
+      if (method === 'GET' && path === '/api/data/myTrades') {
+        if (!subject) throw new HttpError(401,'请先登录。');
+        const query = new URLSearchParams({select:'id,market_id,buyer_user_id,price,quantity,buyer_fee,seller_fee,executed_at',or:'(buyer_user_id.eq.' + subject + ',seller_user_id.eq.' + subject + ')',order:'executed_at.desc,id.desc',limit:'100',offset:String(offset)});
+        const trades = await upstream('/rest/v1/trades?' + query,token);
+        return send(res,200,trades.map(({buyer_user_id,buyer_fee,seller_fee,...trade}) => ({...trade,side:buyer_user_id === subject ? 'buy' : 'sell',fee:buyer_user_id === subject ? buyer_fee : seller_fee})));
+      }
+      if (method === 'POST' && path === '/api/profile') {
+        if (!subject) throw new HttpError(401,'请先登录。');
+        const input = await readJson(req);
+        const allowed = ['display_name','preferred_language','preferred_timezone','preferred_fiat'];
+        if (!Object.keys(input).length || Object.keys(input).some(field => !allowed.includes(field) || typeof input[field] !== 'string' || input[field].length > 100)) {
+          throw new HttpError(400,'资料字段或长度无效。');
+        }
+        if (input.preferred_timezone) {
+          try { new Intl.DateTimeFormat('zh-CN',{timeZone:input.preferred_timezone}); }
+          catch { throw new HttpError(400,'请输入有效时区，例如 Asia/Shanghai。'); }
+        }
+        const query = new URLSearchParams({id:'eq.' + subject,select:'id'});
+        const updated = await upstream('/rest/v1/profiles?' + query,token,input,{method:'PATCH',prefer:'return=representation'});
+        if (!updated?.length) throw new HttpError(404,'未找到账户资料。');
+        return send(res,200,true);
       }
       const tableName = /^\/api\/data\/([a-zA-Z]+)$/.exec(path)?.[1];
       if (method === 'GET' && tableName) {

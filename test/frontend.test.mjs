@@ -12,7 +12,8 @@ async function windowFixture(pathname, hash, currentUser) {
     'data/markets':[market],
     'data/assets':[],
     'data/tickers':[],
-    'data/settings':[{key:'spot_trading_enabled',value:true},{key:'balance_model',value:{type:'internal_credit'}}],
+    'data/settings':[{key:'spot_trading_enabled',value:true},{key:'balance_model',value:{type:'internal_credit'}},
+      {key:'customer_service',value:{enabled:true,label:'联系客服',url:'mailto:support@example.test'}}],
     'auth/session':currentUser,
     'rpc/get_public_candles':[{open:90,close:100,high:105,low:85,open_time:'2026-11-17T15:00:00Z'}],
     'data/marketQuote':{source:'Binance',candles:[{open:90,close:100,high:105,low:85,open_time:'2026-11-17T15:00:00Z'}],
@@ -37,7 +38,9 @@ assert.match(guest['#main'].innerHTML,/BTC\/USDT/);
 assert.match(guest['#main'].innerHTML,/登录交易/);
 assert.match(guest['#chart'].innerHTML,/价格 K 线图/);
 assert.match(guest['#chart-price'].innerHTML,/100\.25/);
-assert.match(guest['#chart-info'].textContent,/Binance 参考行情/);
+assert.match(guest['#chart-info'].textContent,/参考行情/);
+assert.doesNotMatch(guest['#chart-info'].textContent + guest['#main'].innerHTML,/Binance/);
+assert.match(guest['#account'].innerHTML,/href="mailto:support@example.test"/);
 assert.match(guest['#market-depth'].innerHTML,/96\.123456789/);
 const member = await windowFixture('/', '#wallet', {user:{email:'buyer@example.com'}});
 assert.match(member['#main'].innerHTML,/100\.75/);
