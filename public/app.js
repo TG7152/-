@@ -3,7 +3,7 @@ const main = $('#main');
 const modal = $('#modal');
 const state = {
   session: null, role: null, sessionReady: false, markets: [], assets: [], tickers: {}, settings: {},
-  market: '', interval: '1h', filter: '', adminTab: 'overview', walletTab: 'balances',
+  market: '', interval: '1m', quoteSource: 'reference', filter: '', adminTab: 'overview', walletTab: 'balances',
   tradeTab: 'book', adminAccount: null, revision: 0, marketRevision: 0
 };
 const requestKeys = new Map();
@@ -213,14 +213,25 @@ function marketList() {
   }).join('') || empty(state.catalogError ? state.catalogError.message : '没有匹配的交易对');
 }
 
+function chartPrices(ticker, reference) {
+  const change = reference ? ticker?.price_change_pct : ticker?.price_change_24h;
+  return `<strong class="number">${e(decimal(ticker?.last_price))}</strong>` + (change == null ? '' :
+    `<span class="${Number(change) >= 0 ? 'gain' : 'loss'} number">${e(decimal(change))}${reference ? '%' : ''} 24h 变动</span>`);
+}
+
+function chartMetrics(ticker, reference) {
+  const metrics = [[reference ? '参考最新价' : '最新成交价',ticker?.last_price],['24h 最高',ticker?.high_24h],
+    ['24h 最低',ticker?.low_24h],['24h 成交量',ticker?.volume_24h]];
+  return metrics.map(([title,value]) => `<div class="metric"><small>${e(title)}</small><strong>${e(decimal(value))}</strong></div>`).join('');
+}
+
 function tradeShell() {
   const market = state.markets.find(m => m.symbol === state.market);
-  const ticker = market && state.tickers[market.id];
-  const change = ticker?.price_change_24h;
-  const metrics = [['最新价', ticker?.last_price], ['24h 最高', ticker?.high_24h], ['24h 最低', ticker?.low_24h], ['24h 成交量', ticker?.volume_24h]];
+  const reference = state.quoteSource === 'reference';
+  const ticker = !reference && market ? state.tickers[market.id] : null;
+  const sourceTabs = tabs([['reference','Binance 参考行情'],['exchange','本站成交 K 线']],state.quoteSource,'quote-source');
   const levels = ['1m','5m','15m','1h','4h','1d'].map(i => [i,i]);
   const canTrade = Boolean(market?.status === 'active' && state.settings.spot_trading_enabled === true);
-  const changes = change == null ? '' : `<span class="${Number(change) >= 0 ? 'gain' : 'loss'} number">${e(decimal(change))} 24h 变动</span>`;
   const orderForm = state.session ?
     form('submit_limit_order',
       hidden('market_symbol', state.market) +
@@ -236,13 +247,14 @@ function tradeShell() {
     `<div class="layout">
       ${section('交易对', `<input id="market-search" class="search" aria-label="搜索交易对" placeholder="搜索交易对" value="${e(state.filter)}"><div class="market-list" id="market-list">${marketList()}</div>`)}
       <div class="stack">
-        ${section(market?.symbol || '市场行情', `<div class="price-top"><strong class="number">${e(decimal(ticker?.last_price))}</strong>${changes}</div>
+        ${section(market?.symbol || '市场行情', `<div class="panel-head">${sourceTabs}</div>
+          <div id="chart-price" class="price-top">${chartPrices(ticker,reference)}</div>
           <div id="chart" class="chart-wrap">${empty(market ? '正在读取 K 线…' : '暂无交易对')}</div>
-          <div class="panel-head"><small id="chart-info" class="muted">${ticker?.updated_at ? '行情更新 ' + date(ticker.updated_at) : ''}</small></div>`, tabs(levels,state.interval,'interval'))}
-        ${section('市场数据', body(`<div class="grid-two">${metrics.map(([title,value]) => `<div class="metric"><small>${e(title)}</small><strong>${e(decimal(value))}</strong></div>`).join('')}</div>`))}
+          <div class="panel-head"><small id="chart-info" class="muted">${reference ? '参考行情约每 10 秒更新，不参与本站撮合。' : (ticker?.updated_at ? '行情更新 ' + date(ticker.updated_at) : '')}</small></div>`, tabs(levels,state.interval,'interval'))}
+        ${section(reference ? '参考市场数据' : '本站市场数据', body(`<div id="chart-metrics" class="grid-two">${chartMetrics(ticker,reference)}</div>`))}
       </div>
       <div class="stack trade-actions">
-        ${section('市场深度', `<div id="market-depth">${empty(market ? '正在读取…' : '暂无交易对')}</div>`, tabs([['book','订单簿'],['trades','成交']],state.tradeTab,'trade-tab'), 'compact')}
+        ${section('本站市场深度', `<div id="market-depth">${empty(market ? '正在读取…' : '暂无交易对')}</div>`, tabs([['book','订单簿'],['trades','成交']],state.tradeTab,'trade-tab'), 'compact')}
         ${section('限价委托', body(orderForm))}
       </div>
     </div>`;
@@ -271,19 +283,43 @@ function candleChart(input) {
   return `<svg viewBox="0 0 715 260" role="img" aria-label="价格 K 线图">${grid}${bars}<text x="0" y="253" fill="#9aafa4" font-size="10">${e(time(values[0].open_time))}</text><text x="625" y="253" text-anchor="end" fill="#9aafa4" font-size="10">${e(time(values.at(-1).open_time))}</text></svg>`;
 }
 
-async function loadMarket() {
+let activeMarketLoad = 0;
+async function loadMarket({chartOnly = false} = {}) {
+  if (!state.market || !$('#chart')) return;
   const revision = ++state.marketRevision;
-  if (!state.market) return;
-  const market = state.market;
-  const [chart, book] = await panelResults([
-    rpc('get_public_candles',{market_symbol:market,interval:state.interval,limit:90}),
-    state.tradeTab === 'book' ? rpc('get_public_order_book',{market_symbol:market,depth:15}) : rpc('get_public_trades',{market_symbol:market,limit:30})
-  ]);
-  if (revision !== state.marketRevision || !$('#chart')) return;
-  $('#chart').innerHTML = errorOr(chart, candleChart);
-  $('#market-depth').innerHTML = errorOr(book, value => state.tradeTab === 'book' ?
-    table(['方向','价格','数量'],rows(value),r => [`<span class="${r.side === 'buy' ? 'gain' : 'loss'}">${e(st(r.side))}</span>`,num(r.price),num(r.quantity)],'暂无挂单') :
-    table(['价格','数量','成交时间'],rows(value),r => [num(r.price),num(r.quantity),date(r.executed_at)],'暂无成交'));
+  activeMarketLoad = revision;
+  const {market,interval,quoteSource,tradeTab} = state;
+  const reference = quoteSource === 'reference';
+  const chartRequest = reference
+    ? api('data/marketQuote?' + new URLSearchParams({symbol:market,interval}))
+    : rpc('get_public_candles',{market_symbol:market,interval,limit:90});
+  const chartView = (async () => {
+    try {
+      const result = await chartRequest;
+      if (revision !== state.marketRevision) return;
+      $('#chart').innerHTML = candleChart(reference ? result.candles : result);
+      if (!reference) return;
+      $('#chart-price').innerHTML = chartPrices(result.ticker,true);
+      $('#chart-metrics').innerHTML = chartMetrics(result.ticker,true);
+      $('#chart-info').textContent = `${result.source} 参考行情 · ${time(result.ticker.updated_at)} · 不参与本站撮合`;
+    } catch (error) {
+      if (revision !== state.marketRevision) return;
+      if (!chartOnly || !$('#chart svg')) $('#chart').innerHTML = errorBlock(error);
+      if (reference) $('#chart-info').textContent = '参考行情更新失败，稍后自动重试。';
+    }
+  })();
+  const bookView = chartOnly ? null : (async () => {
+    const [book] = await panelResults([tradeTab === 'book' ? rpc('get_public_order_book',{market_symbol:market,depth:15}) : rpc('get_public_trades',{market_symbol:market,limit:30})]);
+    if (revision !== state.marketRevision) return;
+    $('#market-depth').innerHTML = errorOr(book,value => tradeTab === 'book' ?
+      table(['方向','价格','数量'],rows(value),r => [`<span class="${r.side === 'buy' ? 'gain' : 'loss'}">${e(st(r.side))}</span>`,num(r.price),num(r.quantity)],'暂无挂单') :
+      table(['价格','数量','成交时间'],rows(value),r => [num(r.price),num(r.quantity),date(r.executed_at)],'暂无成交'));
+  })();
+  try {
+    await Promise.all([chartView,bookView]);
+  } finally {
+    if (activeMarketLoad === revision) activeMarketLoad = 0;
+  }
 }
 
 function ordersView(value, admin = false) {
@@ -738,8 +774,8 @@ document.addEventListener('click', async event => {
       state.adminAccount = null;
       requestKeys.clear();
       await render();
-    } else if (action === 'market' || action === 'interval' || action === 'trade-tab') {
-      state[{market:'market',interval:'interval','trade-tab':'tradeTab'}[action]] = value;
+    } else if (action === 'market' || action === 'interval' || action === 'trade-tab' || action === 'quote-source') {
+      state[{market:'market',interval:'interval','trade-tab':'tradeTab','quote-source':'quoteSource'}[action]] = value;
       await render();
     } else if (action === 'wallet-tab' || action === 'finance-tab') {
       state[action === 'wallet-tab' ? 'walletTab' : 'adminTab'] = value;
@@ -784,6 +820,12 @@ modal.addEventListener('close', () => {
   modal.replaceChildren();
 });
 window.addEventListener('hashchange', () => { void render(); });
+
+setInterval(() => {
+  if (!document.hidden && !isAdminPage() && current() === 'trade' && state.quoteSource === 'reference' && !activeMarketLoad) {
+    void loadMarket({chartOnly:true});
+  }
+},10_000);
 
 async function boot() {
   try {

@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
+import { createReferenceMarketData } from './market-data.mjs';
 
 const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -133,7 +134,7 @@ async function readJson(req) {
   }
 }
 
-export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCookies = false, upstreamFetch = fetch }) {
+export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCookies = false, upstreamFetch = fetch, marketFetch = fetch }) {
   const upstreamUrl = new URL(supabaseUrl);
   if (upstreamUrl.protocol !== 'https:' || upstreamUrl.origin !== upstreamUrl.href.slice(0, -1) || upstreamUrl.username || upstreamUrl.password) {
     throw new Error('SUPABASE_URL 必须是无路径的 HTTPS 项目 URL。');
@@ -145,6 +146,7 @@ export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCook
   } else if (!key.startsWith('sb_publishable_')) {
     throw new Error('请配置 Supabase publishable key。');
   }
+  const referenceMarket = createReferenceMarketData({ fetchImpl:marketFetch });
 
   async function upstream(path, token, body) {
     const headers = { apikey: key, accept: 'application/json' };
@@ -214,6 +216,13 @@ export function createApp({ supabaseUrl, key, origin, codespacesPort, secureCook
       const url = new URL(req.url, 'http://localhost');
       const path = url.pathname;
       if (req.method === 'GET' && path === '/healthz') return send(res, 200, { status: 'ok' });
+      if (req.method === 'GET' && path === '/api/data/marketQuote') {
+        const result = await referenceMarket(url.searchParams.get('symbol'),url.searchParams.get('interval'),async symbol => {
+          const query = new URLSearchParams({select:'symbol',symbol:'eq.' + symbol,status:'eq.active',limit:'1'});
+          return (await upstream('/rest/v1/public_markets?' + query)).length > 0;
+        });
+        return send(res,200,result);
+      }
       if (req.method === 'GET' && assets.has(path)) {
         const [file, type] = assets.get(path);
         res.setHeader('Content-Type', type);
