@@ -45,6 +45,11 @@ const short = value => String(value || '').slice(0, 8);
 const marketName = id => state.markets.find(m => m.id === id)?.symbol || short(id);
 const assetName = id => state.assets.find(a => a.id === id)?.symbol || short(id);
 const amountValue = value => String(value).trim();
+function displayMessage(value) {
+  return String(value ?? '').replaceAll('USDT（站内记账单位）','USDT').replaceAll('USDT 站内记账额度','USDT')
+    .replaceAll('USDT 站内记账单位','USDT').replaceAll('站内记账额度','额度').replaceAll('站内记账单位','USDT')
+    .replaceAll('站内 USDT','USDT').replaceAll('站内消息','业务消息');
+}
 const e = esc;
 const pendingOrder = s => ['new','open','partially_filled'].includes(s);
 const pendingWithdrawal = s => ['requested','reviewing'].includes(s);
@@ -66,7 +71,7 @@ async function rawApi(path, body) {
     throw new ApiError(502, '网络连接中断，请重试。');
   }
   const result = await response.json().catch(() => null);
-  if (!response.ok) throw new ApiError(response.status, result?.error || '请求失败，请检查服务是否在线。');
+  if (!response.ok) throw new ApiError(response.status, displayMessage(result?.error || '请求失败，请检查服务是否在线。'));
   if (result === null && !response.headers.get('content-type')?.includes('application/json')) throw new ApiError(502,'服务返回了无效响应。');
   return result;
 }
@@ -143,7 +148,7 @@ async function refreshUnread() {
     if (unreadSeen) {
       const added = messages.filter(message => !unreadSeen.has(message.id));
       if (added.length) {
-        showNotice(added.length === 1 ? added[0].title : `有 ${added.length} 条新的业务消息`);
+        showNotice(added.length === 1 ? displayMessage(added[0].title) : `有 ${added.length} 条新的业务消息`);
         if (typeof Notification === 'function' && Notification.permission === 'granted') {
           try { new Notification('清音交易所',{body:'有新业务消息，请进入交易所查看。',tag:'qingyin-inbox'}); } catch {}
         }
@@ -213,7 +218,6 @@ function renderNav() {
   const service = state.settings.customer_service;
   const url = service?.enabled && customerLink(service.url);
   if (!isAdminPage()) $('#account').innerHTML += url ? `<a class="button tiny" href="${e(url)}" rel="noopener noreferrer"${safeHttps(url) ? ' target="_blank"' : ''}>${e(service.label || '联系客服')}</a>` : button('联系客服','service','','tiny');
-  $('#footer-content').textContent = 'USDT 为站内记账单位';
 }
 
 function renderModal(title, contents) {
@@ -246,13 +250,13 @@ async function refreshCatalog() {
   if (tickers.status === 'fulfilled') state.tickers = Object.fromEntries(rows(tickers.value).map(row => [row.market_id,row]));
   if (settings.status === 'fulfilled') state.settings = Object.fromEntries(rows(settings.value).map(row => [row.key,row.value]));
   if (!state.markets.some(m => m.symbol === state.market)) {
-    state.market = (state.markets.find(m => m.symbol === 'BTC/USDT') || state.markets[0])?.symbol || '';
+    state.market = (state.markets.find(m => m.symbol === 'BTC/USDT') || state.markets.find(m => m.quote_asset === 'USDT' && m.status === 'active') || state.markets.find(m => m.quote_asset === 'USDT'))?.symbol || '';
   }
 }
 
 function marketList() {
   const filter = state.filter.trim().toUpperCase();
-  const matches = state.markets.filter(m => m.symbol.includes(filter));
+  const matches = state.markets.filter(m => m.quote_asset === 'USDT' && m.symbol.includes(filter));
   return matches.map(m => {
     const base = m.base_asset || m.symbol.split('/')[0];
     const ticker = state.tickers[m.id];
@@ -280,7 +284,7 @@ function tradeShell() {
   const ticker = !reference && market ? state.tickers[market.id] : null;
   const sourceTabs = tabs([['reference','参考行情'],['exchange','本站成交 K 线']],state.quoteSource,'quote-source');
   const levels = (reference ? ['1s','1m','5m','15m','1h','4h','1d'] : ['1m','5m','15m','1h','4h','1d']).map(i => [i,i]);
-  const canTrade = Boolean(market?.status === 'active' && state.settings.spot_trading_enabled === true);
+  const canTrade = Boolean(market?.status === 'active' && market.quote_asset === 'USDT' && state.settings.spot_trading_enabled === true);
   const orderForm = state.session ?
     form('submit_limit_order',
       hidden('market_symbol', state.market) +
@@ -290,9 +294,9 @@ function tradeShell() {
       '提交限价委托', { single:true, disabled:!canTrade }) :
     `<p class="muted">登录后可提交限价委托。</p>${button('登录交易','login','','primary block')}`;
   const controls = '<div class="actions">' +
-    (state.settings.balance_model?.type === 'internal_credit' ? '<span class="pill">站内记账</span>' : '') +
+    (state.settings.balance_model?.type === 'internal_credit' ? '<span class="pill">USDT</span>' : '') +
     button('刷新行情','refresh-market','','tiny') + '</div>';
-  return hero('现货交易', '查看行情、订单簿与历史成交', controls) +
+  return hero('现货交易', '使用 USDT 买入代币，查看订单簿与历史成交', controls) +
     `<div class="layout">
       ${section('交易对', `<input id="market-search" class="search" aria-label="搜索交易对" placeholder="搜索交易对" value="${e(state.filter)}"><div class="market-list" id="market-list">${marketList()}</div>`)}
       <div class="stack">
@@ -461,20 +465,20 @@ async function renderInbox() {
     ((state.unreadCount || messages.some(r => !r.read_at)) ? button('全部标记已读','read-all','','tiny') : '') +
     (pageOffset('inbox') ? button('上一页','page','inbox|' + (pageOffset('inbox') - 100),'tiny') : '') +
     (messages.length === 100 ? button('下一页','page','inbox|' + (pageOffset('inbox') + 100),'tiny') : '');
-  return title + section('站内通知', messages.length ? messages.map(r =>
-    `<article class="message-entry ${r.read_at ? '' : 'unread'}"><strong>${e(r.title)}</strong><p>${e(r.body)}</p><small class="muted">${date(r.created_at)}${r.read_at ? '' : ' · 未读'}</small></article>`).join('') : empty('暂无通知'), '<div class="actions">' + controls + '</div>');
+  return title + section('业务通知', messages.length ? messages.map(r =>
+    `<article class="message-entry ${r.read_at ? '' : 'unread'}"><strong>${e(displayMessage(r.title))}</strong><p>${e(displayMessage(r.body))}</p><small class="muted">${date(r.created_at)}${r.read_at ? '' : ' · 未读'}</small></article>`).join('') : empty('暂无通知'), '<div class="actions">' + controls + '</div>');
 }
 
-const walletTabs = [['balances','余额'],['recharge','充值'],['withdraw','提现'],['transfer','站内转账'],['ledger','账本'],['profile','账户信息']];
+const walletTabs = [['balances','余额'],['recharge','充值'],['withdraw','提现'],['transfer','转账'],['ledger','账本'],['profile','账户信息']];
 
 async function renderWallet() {
-  const title = hero('资产', '查看余额与账本，管理收付款申请', '<span class="pill">站内记账</span>');
+  const title = hero('资产', '查看余额与账本，管理收付款申请', '<span class="pill">USDT</span>');
   if (!state.session) return title + gate('登录查看资产');
   const tab = state.walletTab;
   let content;
   if (tab === 'balances') {
     content = await pagedPanel('账户余额','balances', value =>
-      table(['资产','可用','冻结'],rows(value),r => [`<strong>${e(r.symbol)}</strong> <small class="muted">${e(r.asset_name)}</small>`,num(r.available_balance),num(r.locked_balance)],'暂无资产余额'),pageOffset('balances'));
+      table(['资产','可用','冻结'],rows(value),r => [`<strong>${e(r.symbol)}</strong> <small class="muted">${e(r.symbol === 'USDT' ? '' : r.asset_name)}</small>`,num(r.available_balance),num(r.locked_balance)],'暂无资产余额'),pageOffset('balances'));
   } else if (tab === 'recharge') {
     content = await rechargePanel();
   } else if (tab === 'withdraw') {
@@ -482,7 +486,7 @@ async function renderWallet() {
   } else if (tab === 'transfer') {
     const result = await panelResults([rpc('get_my_transfer_history',{limit:50})]);
     content = `<div class="grid-two">
-      ${formPanel('发起站内转账','transfer_asset',
+      ${formPanel('发起转账','transfer_asset',
         fields('收款人邮箱','recipient_email',{type:'email',wide:true,maxlen:254}) +
         fields('资产','asset_symbol',{values:state.assets.map(r => r.symbol),value:'USDT'}) +
         fields('数量','amount',{mode:'decimal'}),'提交转账')}
@@ -508,7 +512,7 @@ async function renderWallet() {
 async function rechargePanel() {
   const receiving = state.settings.payment_receiving || {};
   const [recharge, deposits] = await panelResults([
-    pagedPanel('充值申请','recharges',value => table(['付款币种','付款金额','站内记账数量','状态','审核说明','时间'],rows(value),r =>
+    pagedPanel('充值申请','recharges',value => table(['付款币种','付款金额','USDT 数量','状态','审核说明','时间'],rows(value),r =>
       [e(r.fiat_currency || st(r.payment_type)),num(r.paid_amount),num(r.token_amount),stateTag(r.status),wrap(r.review_note),date(r.created_at)]),pageOffset('recharges')),
     pagedPanel('入账记录','deposits',value => table(['资产','网络或渠道','数量','状态','时间'],rows(value),r =>
       [e(assetName(r.asset_id)),e(r.network),num(r.amount),stateTag(r.status),date(r.created_at)]),pageOffset('deposits'))
@@ -518,11 +522,11 @@ async function rechargePanel() {
     const image = safeHttps(receiving.qr_image_url);
     const paymentLink = safeHttps(receiving.qr_payload);
     details = body(facts([['付款币种',receiving.fiat_currency],['收款人',receiving.receiver_name],['开户行',receiving.bank_name],['收款账号',receiving.account_number],
-      ['每 1 站内记账单位对应的法币金额',decimal(receiving.rate)],['付款说明',receiving.instructions]]) +
+      ['每 1 USDT对应的法币金额',decimal(receiving.rate)],['付款说明',receiving.instructions]]) +
       (image ? `<img class="payment-qr" alt="收款二维码" src="${e(image)}">` : '') +
       (paymentLink ? `<p><a class="button tiny" href="${e(paymentLink)}" target="_blank" rel="noopener noreferrer">打开付款链接</a></p>` :
         receiving.qr_payload ? `<p class="muted wrap-cell">支付码内容 ${e(receiving.qr_payload)}</p>` : '') +
-      '<p class="form-help section-gap">付款后提交核实申请，审核结果会发送到站内消息。</p>');
+      '<p class="form-help section-gap">付款后提交核实申请，审核结果会发送到业务消息。</p>');
   }
   const rechargeForm = receiving.enabled && receiving.payment_type === 'fiat' ? formPanel('提交付款核实','submit_recharge',
     fields('实付金额 · ' + receiving.fiat_currency,'amount',{mode:'decimal'}) +
@@ -557,7 +561,7 @@ async function withdrawalPanel() {
   const bankWithdraw = cashout.enabled && bankAccounts.length ?
     formPanel('申请法币提现','request_fiat_withdrawal',
       fields('绑定账户','account_id',{values:opts(bankAccounts)}) +
-      fields('申请数量 · 站内记账单位','amount',{mode:'decimal',hint:'最低 ' + decimal(cashout.minimum) + '，手续费 ' + decimal(cashout.fee)}),
+      fields('申请数量 · USDT','amount',{mode:'decimal',hint:'最低 ' + decimal(cashout.minimum) + '，手续费 ' + decimal(cashout.fee)}),
       '提交申请') : section('法币提现',empty(cashout.enabled ? '请先绑定对应币种的银行账户' : '当前法币提现通道未启用'));
   const cryptoWithdraw = onchain && cryptoAccounts.length ? formPanel('申请链上提现','request_bound_withdrawal',
     fields('绑定地址','account_id',{values:opts(cryptoAccounts)}) + fields('申请数量','amount',{mode:'decimal'}),'提交申请') : '';
@@ -585,7 +589,7 @@ async function renderAdmin() {
   const role = `<span class="pill">${e(st(state.role))}</span>`;
   if (!adminAccess(page)) return hero('管理后台','管理员访问控制',role) + section('访问受限',empty('当前角色无权访问此模块'));
   if (page === 'accounts') return hero('账户管理','查询账户、查看状态与进行合规审核',role) + await adminAccounts();
-  if (page === 'finance') return hero('财务管理','审核充提申请并管理站内记账额度',role) + await adminFinance();
+  if (page === 'finance') return hero('财务管理','审核充提申请并管理 USDT 余额',role) + await adminFinance();
   if (page === 'catalog') return hero('资产与市场','配置资产、交易对和交易状态',role) + await adminCatalog();
   if (page === 'settings') return hero('平台设置','配置客服、收款和法币提现通道',role) + adminSettings();
   if (page === 'audit') return hero('审计与风控','查看关键操作与风险记录',role) + await adminAudit();
@@ -614,7 +618,7 @@ async function adminAccounts() {
   const dashboard = await panelResults([rpc('admin_dashboard')]);
   const query = formPanel('查询账户','find-account',fields('完整邮箱、用户名或 UID','identifier',{wide:true,maxlen:254}),'查询');
   const result = account ? section('账户详情',body(facts([['UID',account.id],['邮箱',account.email],['名称',account.display_name],['用户名',account.username],
-    ['账户状态',st(account.account_status)],['可用站内记账额度',decimal(account.available)]]))) : '';
+    ['账户状态',st(account.account_status)],['可用 USDT',decimal(account.available)]]))) : '';
   const review = topRole() ? formPanel('账户审核','admin_review_account',
     fields('用户 UID','user_id',{value:account?.id || '',wide:true,maxlen:36}) +
     fields('账户状态','status',{values:[['active','正常'],['suspended','封禁']],value:account?.account_status}) +
@@ -627,7 +631,7 @@ async function adminAccounts() {
 
 async function adminFinance() {
   const tab = state.adminTab;
-  const tools = tabs([['overview','充值审核'],['withdrawals','提现审核'],['credit','站内记账额度']],tab,'finance-tab');
+  const tools = tabs([['overview','充值审核'],['withdrawals','提现审核'],['credit','USDT 余额']],tab,'finance-tab');
   let content;
   if (tab === 'withdrawals') {
     const [dashboard] = await panelResults([rpc('admin_dashboard')]);
@@ -688,7 +692,7 @@ async function adminCatalog() {
       fields('网络代码','network_code',{required:false,maxlen:32}) + fields('网络名称','network_name',{required:false,maxlen:100}) +
       fields('合约地址','contract_address',{wide:true,required:false,maxlen:256}), '登记资产')}
     ${formPanel('创建交易对','admin_create_market',
-      fields('基础资产','base_asset_symbol',{values:choices,value:'BTC'}) + fields('计价资产','quote_asset_symbol',{values:choices,value:'USDT'}) +
+      fields('基础资产','base_asset_symbol',{values:choices.filter(symbol=>symbol!=='USDT'),value:'BTC'}) + fields('计价资产','quote_asset_symbol',{value:'USDT',readonly:true}) +
       fields('价格精度','price_precision',{type:'number',value:8,min:0,max:18}) +
       fields('数量精度','quantity_precision',{type:'number',value:8,min:0,max:18}) +
       fields('最低数量','min_quantity',{mode:'decimal',value:0}), '创建市场')}
@@ -906,7 +910,7 @@ document.addEventListener('click', async event => {
       else showNotice('客服联系方式尚未在后台启用。');
     } else if (action === 'notifications') {
       const permission = await Notification.requestPermission();
-      showNotice(permission === 'granted' ? '已开启桌面提醒' : '站内提醒仍可使用');
+      showNotice(permission === 'granted' ? '已开启桌面提醒' : '消息提醒仍可使用');
       await render();
     }
     else if (action === 'login' || action === 'signup') showAuth(action === 'signup');

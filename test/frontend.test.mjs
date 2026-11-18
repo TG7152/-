@@ -9,7 +9,7 @@ async function windowFixture(pathname, hash, currentUser) {
   }]));
   const market = {id:'btc', symbol:'BTC/USDT', base_asset:'BTC', quote_asset:'USDT', price_precision:8, quantity_precision:8, min_quantity:'0.01',status:'active'};
   const linkedData = {
-    'data/markets':[market],
+    'data/markets':[market,{id:'btc-usdc',symbol:'BTC/USDC',base_asset:'BTC',quote_asset:'USDC',status:'inactive'}],
     'data/assets':[],
     'data/tickers':[],
     'data/settings':[{key:'spot_trading_enabled',value:true},{key:'balance_model',value:{type:'internal_credit'}},
@@ -35,6 +35,7 @@ async function windowFixture(pathname, hash, currentUser) {
 }
 const guest = await windowFixture('/', '#trade', {user:null});
 assert.match(guest['#main'].innerHTML,/BTC\/USDT/);
+assert.doesNotMatch(guest['#main'].innerHTML,/BTC\/USDC/);
 assert.match(guest['#main'].innerHTML,/登录交易/);
 assert.match(guest['#chart'].innerHTML,/价格 K 线图/);
 assert.match(guest['#chart-price'].innerHTML,/100\.25/);
