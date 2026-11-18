@@ -29,6 +29,8 @@ const ownTables = {
   withdrawals: ['withdrawals', 'id,asset_id,payout_type,fiat_currency,fiat_amount,amount,fee,status,tx_hash,review_note,rejection_reason,created_at', 'created_at.desc', 'user_id'],
   accounts: ['withdrawal_accounts', 'id,asset_id,label,network_code,account_type,fiat_currency,bank_name,account_last4,is_active', 'created_at.desc', 'user_id'],
   inbox: ['user_notifications', 'id,kind,title,body,read_at,created_at', 'created_at.desc', 'user_id'],
+  tradingTransfers: ['trading_account_transfers','request_id,direction,amount,created_at','created_at.desc,request_id.desc','user_id'],
+  contractPositions: ['contract_positions','id,market_id,side,leverage,margin,quantity,entry_price,state,realized_pnl,exit_price,opened_at,closed_at','opened_at.desc,id.desc','user_id'],
   adminRole: ['admin_members', 'role', '', 'user_id'],
   kyc: ['kyc_cases', 'id,provider,level,status,created_at,reviewed_at', 'created_at.desc', 'user_id'],
   deposits: ['deposits', 'id,asset_id,network,tx_hash,amount,confirmations,status,created_at', 'created_at.desc', 'user_id']
@@ -49,6 +51,11 @@ const publicCalls = {
   get_public_trades: ['market_symbol','limit']
 };
 const userCalls = {
+  get_trading_usdt_balances: [],
+  transfer_trading_usdt: ['direction','amount','request_id'],
+  get_contract_marks: [],
+  open_usdt_contract: ['market_symbol','side','leverage','margin','expected_price','request_id'],
+  close_usdt_contract: ['position_id'],
   submit_limit_order: ['market_symbol','side','price','quantity','client_order_id'],
   cancel_order: ['order_id'],
   get_my_transfer_history: ['limit'],

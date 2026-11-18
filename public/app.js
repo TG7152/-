@@ -4,12 +4,13 @@ const modal = $('#modal');
 const state = {
   session: null, role: null, sessionReady: false, markets: [], assets: [], tickers: {}, settings: {},
   market: '', interval: '1s', quoteSource: 'reference', filter: '', adminTab: 'overview', walletTab: 'balances',
-  tradeTab: 'book', adminAccount: null, revision: 0, marketRevision: 0
+  tradeTab: 'book', contractMarket: '', adminAccount: null, revision: 0, marketRevision: 0
 };
 const requestKeys = new Map();
 const idempotentCalls = {
   submit_limit_order: 'client_order_id', transfer_asset: 'idempotency_key', submit_recharge: 'request_id',
   admin_adjust_usdt: 'request_id',
+  transfer_trading_usdt: 'request_id', open_usdt_contract: 'request_id',
   request_bound_withdrawal: 'idempotency_key', request_fiat_withdrawal: 'idempotency_key',
   admin_allocate_internal_credit: 'request_id', admin_transfer_usdt: 'request_id'
 };
@@ -20,6 +21,7 @@ const words = {
   credited:'已入账', requested:'待审核', reviewing:'审核中', completed:'已完成', broadcasting:'处理中',
   crypto:'数字资产', fiat:'法币', credit:'贷记', debit:'借记', available:'可用', locked:'冻结',
   buy:'买入', sell:'卖出', incoming:'转入', outgoing:'转出', bank:'银行账户',
+  long:'做多', short:'做空', liquidated:'已强平', spot_to_contract:'现货 → 合约', contract_to_spot:'合约 → 现货',
   super_admin:'超级管理员', finance:'财务管理员', operations:'运营管理员', compliance:'合规管理员', support:'客服'
 };
 const st = (value) => words[value] ?? value;
@@ -204,7 +206,7 @@ const panelResults = (queries) => Promise.allSettled(queries);
 
 function renderNav() {
   const page = current();
-  const userPages = [['trade','现货交易'],['wallet','资产'],['orders','委托'],['inbox','消息']];
+  const userPages = [['trade','现货交易'],['contracts','合约交易'],['wallet','资产'],['orders','委托'],['inbox','消息']];
   const nav = isAdminPage() ? [['overview','后台概览'],['accounts','账户'],['finance','财务'],['catalog','资产与市场'],['settings','设置'],['audit','审计']] : userPages;
   const destination = isAdminPage() ? '/admin' : '/';
   $('#nav').innerHTML = nav.filter(([id]) => !isAdminPage() || adminAccess(id)).map(([id,label]) =>
@@ -469,7 +471,93 @@ async function renderInbox() {
     `<article class="message-entry ${r.read_at ? '' : 'unread'}"><strong>${e(displayMessage(r.title))}</strong><p>${e(displayMessage(r.body))}</p><small class="muted">${date(r.created_at)}${r.read_at ? '' : ' · 未读'}</small></article>`).join('') : empty('暂无通知'), '<div class="actions">' + controls + '</div>');
 }
 
-const walletTabs = [['balances','余额'],['recharge','充值'],['withdraw','提现'],['transfer','转账'],['ledger','账本'],['profile','账户信息']];
+const walletTabs = [['balances','现货资产'],['trading','账户划转'],['recharge','充值'],['withdraw','提现'],['transfer','转账'],['ledger','账本'],['profile','账户信息']];
+
+function tradingBalances(result) {
+  const b = rows(result)[0] || {};
+  return table(['账户','可用 USDT','冻结 USDT'],[
+    ['现货账户',b.spot_available,b.spot_locked],['合约账户',b.contract_available,b.contract_locked]
+  ],r => [e(r[0]),num(r[1]),num(r[2])]);
+}
+
+async function tradingTransferPanel() {
+  const [balances,transfers] = await panelResults([
+    rpc('get_trading_usdt_balances'),
+    pagedPanel('划转记录','tradingTransfers',value => table(['方向','USDT','时间'],rows(value),r => [e(st(r.direction)),num(r.amount),date(r.created_at)]),pageOffset('tradingTransfers'))
+  ]);
+  return `<div class="stack">${section('USDT 账户余额',errorOr(balances,tradingBalances))}${formPanel('现货与合约账户划转','transfer_trading_usdt',
+    fields('划转方向','direction',{values:[['spot_to_contract','现货 → 合约'],['contract_to_spot','合约 → 现货']]}) +
+    fields('划转数量 · USDT','amount',{mode:'decimal',hint:'仅可划转转出账户的可用余额，最多 6 位小数。'}),'确认划转')}${errorOr(transfers,v=>v)}</div>`;
+}
+
+function contractTable(positions,marks) {
+  return table(['交易对','方向','杠杆','保证金','开仓价','结算价','盈亏 · USDT','状态','时间','操作'],positions,r => {
+    const mark = marks.find(m => m.market_id === r.market_id);
+    const movingPnl = mark ? (Number(mark.price) - Number(r.entry_price)) * Number(r.quantity) * (r.side === 'long' ? 1 : -1) : null;
+    const pnl = r.state === 'open' && Number.isFinite(movingPnl) ? Math.max(-Number(r.margin),movingPnl).toFixed(6) : r.realized_pnl;
+    return [e(marketName(r.market_id)),e(st(r.side)),e(`${r.leverage}×`),num(r.margin),num(r.entry_price),num(r.exit_price),
+      num(pnl) + (r.state === 'open' && pnl != null ? '<small class="muted"> 浮动</small>' : ''),stateTag(r.state === 'open' ? '持仓中' : r.state === 'closed' ? '已平仓' : r.state),date(r.closed_at || r.opened_at),
+      r.state === 'open' && mark ? button('平仓','close-contract',r.id,'tiny') : '—'];
+  },'暂无合约仓位');
+}
+
+async function loadContracts() {
+  const offset = pageOffset('contractPositions');
+  return panelResults([rpc('get_trading_usdt_balances'),rpc('get_contract_marks'),data('contractPositions',offset)]);
+}
+
+function contractPanels([balances,marks,positions]) {
+  const quoteRows = marks.status === 'fulfilled' ? rows(marks.value) : [];
+  const offset = pageOffset('contractPositions');
+  const hasMore = positions.status === 'fulfilled' && positions.value.length === 100;
+  return section('USDT 账户余额',errorOr(balances,tradingBalances)) + section('合约持仓与历史',errorOr(positions,v=>contractTable(rows(v),quoteRows)),
+    '<div class="actions">'+(offset ? button('上一页','page','contractPositions|' + (offset-100),'tiny') : '')+
+    (hasMore ? button('下一页','page','contractPositions|' + (offset+100),'tiny') : '')+'</div>');
+}
+
+function contractMarketOptions() {
+  return state.markets.filter(m=>m.status==='active' && m.quote_asset==='USDT');
+}
+
+async function renderContracts() {
+  const title = hero('合约交易','逐仓保证金 · 已结算盈亏计入合约可用 USDT',button('账户划转','contract-funds','','tiny'));
+  if (!state.session) return title + gate('登录查看合约交易');
+  const markets = contractMarketOptions();
+  if (!markets.some(m=>m.symbol===state.contractMarket)) state.contractMarket = markets.find(m=>m.symbol==='BTC/USDT')?.symbol || markets[0]?.symbol || '';
+  const selected = markets.find(m=>m.symbol===state.contractMarket);
+  const result = await loadContracts();
+  const mark = result[1].status==='fulfilled' ? rows(result[1].value).find(m=>m.market_id===selected?.id) : null;
+  const formFields = hidden('market_symbol',state.contractMarket) + hidden('expected_price',mark?.price || '') +
+    fields('方向','side',{values:[['long','做多'],['short','做空']]}) +
+    fields('杠杆倍数','leverage',{type:'number',min:1,max:100,value:1,hint:'最高 100 倍。权益触及持仓价值的 0.5% 时触发强平。'}) +
+    fields('保证金 · USDT','margin',{mode:'decimal',hint:'最低 1 USDT，最多 6 位小数'}) +
+    `<div class="wide muted" id="contract-mark">${mark ? `结算价 ${e(decimal(mark.price))} USDT` : '结算价格暂不可用'}</div>`;
+  return title + `<div class="stack">${tabs(markets.map(m=>[m.symbol,m.symbol]),state.contractMarket,'contract-market')}
+    ${formPanel(state.contractMarket || '合约开仓','open_usdt_contract',formFields,'确认开仓',{disabled:!mark})}
+    <div id="contract-panels" class="stack">${contractPanels(result)}</div></div>`;
+}
+
+let refreshingContracts = false;
+async function refreshContracts() {
+  if (refreshingContracts || document.hidden || !state.session || isAdminPage() || current()!=='contracts' || !$('#contract-panels')) return;
+  refreshingContracts = true;
+  const revision = state.revision;
+  try {
+    const result = await loadContracts();
+    if (revision!==state.revision || !$('#contract-panels')) return;
+    const selected = contractMarketOptions().find(m=>m.symbol===state.contractMarket);
+    const mark = result[1].status==='fulfilled' ? rows(result[1].value).find(m=>m.market_id===selected?.id) : null;
+    $('#contract-mark').textContent = mark ? `结算价 ${decimal(mark.price)} USDT` : '结算价格暂不可用';
+    const openForm = $('[data-form="open_usdt_contract"]');
+    if (openForm) {
+      openForm.elements.expected_price.value = mark?.price || '';
+      $('button[type=submit]',openForm).disabled = !mark || openForm.getAttribute('aria-busy')==='true';
+    }
+    if (result.every(item=>item.status==='fulfilled')) $('#contract-panels').innerHTML = contractPanels(result);
+  } finally {
+    refreshingContracts = false;
+  }
+}
 
 async function renderWallet() {
   const title = hero('资产', '查看余额与账本，管理收付款申请', '<span class="pill">USDT</span>');
@@ -479,6 +567,8 @@ async function renderWallet() {
   if (tab === 'balances') {
     content = await pagedPanel('账户余额','balances', value =>
       table(['资产','可用','冻结'],rows(value),r => [`<strong>${e(r.symbol)}</strong> <small class="muted">${e(r.symbol === 'USDT' ? '' : r.asset_name)}</small>`,num(r.available_balance),num(r.locked_balance)],'暂无资产余额'),pageOffset('balances'));
+  } else if (tab === 'trading') {
+    content = await tradingTransferPanel();
   } else if (tab === 'recharge') {
     content = await rechargePanel();
   } else if (tab === 'withdraw') {
@@ -756,6 +846,7 @@ function reviewModal(kind, id) {
 }
 
 const mutationLabels = {
+  transfer_trading_usdt:'USDT 划转已完成', open_usdt_contract:'合约已开仓', close_usdt_contract:'合约已结算',
   submit_limit_order:'委托已提交', cancel_order:'撤单请求已处理', transfer_asset:'转账已完成',
   bind_bank_account:'银行账户已绑定', bind_withdrawal_account:'链上地址已绑定', unbind_withdrawal_account:'账户已解绑',
   request_bound_withdrawal:'提现申请已提交', request_fiat_withdrawal:'法币提现申请已提交', cancel_withdrawal:'提现申请已取消',
@@ -769,13 +860,14 @@ const mutationLabels = {
   admin_set_deposit_receiving:'链上配置已保存', admin_set_fiat_cashout:'法币提现设置已保存', admin_set_payment_receiving:'法币收款设置已保存'
 };
 const confirmBefore = new Set([
+  'transfer_trading_usdt','open_usdt_contract',
   'transfer_asset','request_bound_withdrawal','request_fiat_withdrawal','admin_allocate_internal_credit','admin_adjust_usdt','admin_transfer_usdt',
   'admin_review_account','admin_review_recharge','admin_review_withdrawal','admin_complete_withdrawal','admin_set_asset_status','admin_set_market_status',
   'admin_set_payment_receiving','admin_set_fiat_cashout','admin_set_deposit_receiving'
 ]);
 const catalogMutations = new Set(['admin_create_asset','admin_set_asset_status','admin_create_market','admin_set_market_status',
   'admin_set_customer_service','admin_set_deposit_receiving','admin_set_fiat_cashout','admin_set_payment_receiving']);
-const numericFields = new Set(['amount','quantity','price','min_quantity','rate','fee','minimum','decimals','price_precision','quantity_precision']);
+const numericFields = new Set(['amount','quantity','price','min_quantity','rate','fee','minimum','decimals','price_precision','quantity_precision','margin','leverage','expected_price']);
 const decimalPattern = /^\d+(?:\.\d+)?$/;
 function normalizePayload(node) {
   const inputs = new FormData(node);
@@ -823,7 +915,9 @@ async function processForm(node) {
   }
   const nameToCall = name === 'payment-settings' ? 'admin_set_payment_receiving' : name;
   if (confirmBefore.has(nameToCall)) {
-    const detail = nameToCall === 'admin_adjust_usdt' ? `\n用户 ${payload.user_id}\n${payload.direction === 'credit' ? '增加' : '扣减'} ${payload.amount} USDT` :
+    const detail = nameToCall === 'open_usdt_contract' ? `\n${payload.market_symbol} ${st(payload.side)} ${payload.leverage}× · 保证金 ${payload.margin} USDT` :
+      nameToCall === 'transfer_trading_usdt' ? `\n${st(payload.direction)} · ${payload.amount} USDT` :
+      nameToCall === 'admin_adjust_usdt' ? `\n用户 ${payload.user_id}\n${payload.direction === 'credit' ? '增加' : '扣减'} ${payload.amount} USDT` :
       payload.amount ? '\n数量：' + payload.amount : payload.decision ? '\n审核决定：' + st(payload.decision) : '';
     if (!window.confirm('确认执行此操作？' + detail)) return;
   }
@@ -853,6 +947,7 @@ async function render() {
   try {
     if (isAdminPage()) contents = await renderAdmin();
     else if (page === 'wallet') contents = await renderWallet();
+    else if (page === 'contracts') contents = await renderContracts();
     else if (page === 'orders') contents = await renderOrders();
     else if (page === 'inbox') contents = await renderInbox();
     else contents = tradeShell();
@@ -880,6 +975,7 @@ document.addEventListener('submit', async event => {
   if (control.disabled) return;
   const status = $('.form-status',node);
   control.disabled = true;
+  node.setAttribute('aria-busy','true');
   status.textContent = '';
   status.classList.remove('error');
   try {
@@ -888,6 +984,7 @@ document.addEventListener('submit', async event => {
     status.textContent = error.message;
     status.classList.add('error');
   } finally {
+    node.removeAttribute('aria-busy');
     control.disabled = false;
   }
 });
@@ -924,6 +1021,14 @@ document.addEventListener('click', async event => {
       state[{market:'market',interval:'interval','trade-tab':'tradeTab','quote-source':'quoteSource'}[action]] = value;
       if (state.quoteSource === 'exchange' && state.interval === '1s') state.interval = '1m';
       await render();
+    } else if (action === 'contract-funds') {
+      state.walletTab = 'trading';
+      location.hash = 'wallet';
+    } else if (action === 'contract-market') {
+      state.contractMarket = value;
+      await render();
+    } else if (action === 'close-contract' && confirm('确认按可用结算价格平仓？')) {
+      await performMutation('close_usdt_contract',{position_id:value});
     } else if (action === 'wallet-tab' || action === 'finance-tab') {
       state[action === 'wallet-tab' ? 'walletTab' : 'adminTab'] = value;
       await render();
@@ -976,7 +1081,7 @@ setInterval(() => {
     void loadMarket({chartOnly:true});
   }
 },10_000);
-setInterval(() => { void refreshUnread(); },5000);
+setInterval(() => { void refreshUnread(); void refreshContracts(); },5000);
 window.addEventListener('focus',() => { void refreshUnread(); });
 
 async function boot() {
